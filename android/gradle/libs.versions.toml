@@ -1,0 +1,48 @@
+[versions]
+agp = "8.7.3"
+kotlin = "2.1.0"
+ksp = "2.1.0-1.0.29"
+room = "2.7.2"
+camera = "1.4.2"
+lifecycle = "2.8.7"
+retrofit = "2.11.0"
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+
+[libraries]
+core = { module = "androidx.core:core-ktx", version = "1.15.0" }
+appcompat = { module = "androidx.appcompat:appcompat", version = "1.7.0" }
+fragment = { module = "androidx.fragment:fragment-ktx", version = "1.8.5" }
+activity = { module = "androidx.activity:activity-ktx", version = "1.10.1" }
+material = { module = "com.google.android.material:material", version = "1.12.0" }
+constraint = { module = "androidx.constraintlayout:constraintlayout", version = "2.2.1" }
+recycler = { module = "androidx.recyclerview:recyclerview", version = "1.4.0" }
+lifecycle-runtime = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version = "1.9.0" }
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+work = { module = "androidx.work:work-runtime-ktx", version = "2.10.1" }
+security = { module = "androidx.security:security-crypto", version = "1.1.0" }
+tink = { module = "com.google.crypto.tink:tink-android", version = "1.16.0" }
+bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version = "1.83" }
+camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camera" }
+camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camera" }
+camera-view = { module = "androidx.camera:camera-view", version.ref = "camera" }
+ml-barcode = { module = "com.google.mlkit:barcode-scanning", version = "17.3.0" }
+ml-text = { module = "com.google.mlkit:text-recognition", version = "16.0.1" }
+retrofit-client = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
+retrofit-json = { module = "com.squareup.retrofit2:converter-kotlinx-serialization", version.ref = "retrofit" }
+json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.7.3" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version = "4.12.0" }
+zxing = { module = "com.google.zxing:core", version = "3.5.3" }
+junit = { module = "junit:junit", version = "4.13.2" }
+android-junit = { module = "androidx.test.ext:junit", version = "1.2.1" }
+android-runner = { module = "androidx.test:runner", version = "1.6.2" }
+mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version = "4.12.0" }
+espresso = { module = "androidx.test.espresso:espresso-core", version = "3.6.1" }

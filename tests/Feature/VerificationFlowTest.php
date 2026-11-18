@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\SerialStatus;
+use App\Exceptions\BusinessRuleException;
 use App\Models\AiAnomalyReport;
 use App\Models\Notification;
 use App\Models\PurchaseOrder;
@@ -10,6 +11,7 @@ use App\Models\ScanLog;
 use App\Models\SerialRegistry;
 use App\Models\User;
 use App\Services\Crypto\SerialCryptoService;
+use App\Services\OwnershipTransferService;
 use App\Services\VerificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -73,7 +75,8 @@ class VerificationFlowTest extends TestCase
 
         $this->assertSame('clone_detected', $result['verdict']);
         $this->assertSame('cloned_flagged', $serial->fresh()->status->value);
-        $this->assertCount(2, $clone['feedback_notifications']);
+        $this->assertCount(1, $clone['feedback_notifications']);
+        $this->assertSame('device-store', $clone['feedback_notifications'][0]['device_token']);
         $this->assertSame(2, Notification::query()->where('severity', 'critical_clone')->count());
         $this->assertSame(1, AiAnomalyReport::query()->where('anomaly_type', 'clone_cluster')->count());
 
@@ -154,6 +157,24 @@ class VerificationFlowTest extends TestCase
 
         $this->assertSame('forged_signature', $result['results'][0]['verdict']);
         $this->assertFalse($result['results'][0]['registered']);
+    }
+
+    public function test_handoff_changes_owner_once_without_revealing_the_private_label_in_the_qr(): void
+    {
+        $s = $this->serials[0];
+        $this->scan($s, 'giver', null, null, now()->toIso8601String());
+        $service = app(OwnershipTransferService::class);
+        $this->assertThrows(fn () => $service->issue($s->outer_serial, $s->inner_serial, 'other'), BusinessRuleException::class);
+        $offer = $service->issue($s->outer_serial, $s->inner_serial, 'giver');
+        $this->assertArrayNotHasKey('inner_serial', $offer);
+        $log = $this->log($s, 'recipient', null, null, now()->toIso8601String()) + ['transfer_ticket' => $offer['ticket']];
+        $verify = app(VerificationService::class);
+        $this->assertSame('verified_clean', $verify->crossCheck([$log], $this->buyer)['results'][0]['verdict']);
+        $this->assertSame('recipient', $s->fresh()->claimed_device_token);
+        $this->assertTrue($verify->crossCheck([$log], $this->buyer)['results'][0]['duplicate']);
+        $log['sync_uuid'] = (string) Str::uuid();
+        $log['device_token'] = 'third';
+        $this->assertThrows(fn () => $verify->crossCheck([$log], $this->buyer), BusinessRuleException::class);
     }
 
     private function scan(

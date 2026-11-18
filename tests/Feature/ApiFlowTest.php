@@ -135,6 +135,16 @@ class ApiFlowTest extends TestCase
         $this->withToken($buyerToken)->getJson('/api/v1/auth/me')->assertUnauthorized();
     }
 
+    public function test_mobile_can_refresh_the_offline_package_without_resending_credentials(): void
+    {
+        $path = '/api/v1/offline-blacklist';
+        $this->getJson($path)->assertUnauthorized();
+        $package = $this->withToken($this->login($this->buyer->email))->getJson($path)->assertOk()->json('data');
+        $gzip = base64_decode($package['payload'], true);
+        $this->assertSame(hash('sha256', $gzip), $package['sha256']);
+        $this->assertSame('triproof-offline-blacklist/v1', json_decode(gzdecode($gzip), true)['format']);
+    }
+
     private function login(string $email): string
     {
         $response = $this->postJson('/api/v1/auth/login', [

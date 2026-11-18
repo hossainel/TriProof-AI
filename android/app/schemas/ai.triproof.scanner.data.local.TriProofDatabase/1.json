@@ -1,0 +1,302 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "fc89e32b7bb4141ff849bf9d1c39f789",
+    "entities": [
+      {
+        "tableName": "scan_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `syncUuid` TEXT NOT NULL, `outerSerial` TEXT NOT NULL, `innerSerial` TEXT NOT NULL, `unitHash` TEXT NOT NULL, `factoryId` TEXT, `machineId` TEXT, `batchId` TEXT, `prodDate` TEXT, `expDate` TEXT, `offlineStatus` TEXT NOT NULL, `cloudStatus` TEXT NOT NULL, `feedbackMessageEn` TEXT, `feedbackMessageBn` TEXT, `gpsLat` REAL, `gpsLng` REAL, `scannedAt` INTEGER NOT NULL, `deviceToken` TEXT NOT NULL, `packingSession` TEXT, `previousVerifiedAt` INTEGER, `bannerDismissed` INTEGER NOT NULL, `transferTicket` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncUuid",
+            "columnName": "syncUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outerSerial",
+            "columnName": "outerSerial",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "innerSerial",
+            "columnName": "innerSerial",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unitHash",
+            "columnName": "unitHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "factoryId",
+            "columnName": "factoryId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "machineId",
+            "columnName": "machineId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "batchId",
+            "columnName": "batchId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "prodDate",
+            "columnName": "prodDate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "expDate",
+            "columnName": "expDate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "offlineStatus",
+            "columnName": "offlineStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cloudStatus",
+            "columnName": "cloudStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "feedbackMessageEn",
+            "columnName": "feedbackMessageEn",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "feedbackMessageBn",
+            "columnName": "feedbackMessageBn",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "gpsLat",
+            "columnName": "gpsLat",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "gpsLng",
+            "columnName": "gpsLng",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "scannedAt",
+            "columnName": "scannedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceToken",
+            "columnName": "deviceToken",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packingSession",
+            "columnName": "packingSession",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "previousVerifiedAt",
+            "columnName": "previousVerifiedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "bannerDismissed",
+            "columnName": "bannerDismissed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "transferTicket",
+            "columnName": "transferTicket",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_scan_history_syncUuid",
+            "unique": true,
+            "columnNames": [
+              "syncUuid"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_scan_history_syncUuid` ON `${TABLE_NAME}` (`syncUuid`)"
+          },
+          {
+            "name": "index_scan_history_outerSerial_deviceToken",
+            "unique": false,
+            "columnNames": [
+              "outerSerial",
+              "deviceToken"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_scan_history_outerSerial_deviceToken` ON `${TABLE_NAME}` (`outerSerial`, `deviceToken`)"
+          },
+          {
+            "name": "index_scan_history_cloudStatus_id",
+            "unique": false,
+            "columnNames": [
+              "cloudStatus",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_scan_history_cloudStatus_id` ON `${TABLE_NAME}` (`cloudStatus`, `id`)"
+          },
+          {
+            "name": "index_scan_history_packingSession_outerSerial",
+            "unique": false,
+            "columnNames": [
+              "packingSession",
+              "outerSerial"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_scan_history_packingSession_outerSerial` ON `${TABLE_NAME}` (`packingSession`, `outerSerial`)"
+          },
+          {
+            "name": "index_scan_history_scannedAt",
+            "unique": false,
+            "columnNames": [
+              "scannedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_scan_history_scannedAt` ON `${TABLE_NAME}` (`scannedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "cached_blacklist",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`serialOrBatch` TEXT NOT NULL, `reason` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`serialOrBatch`))",
+        "fields": [
+          {
+            "fieldPath": "serialOrBatch",
+            "columnName": "serialOrBatch",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "serialOrBatch"
+          ]
+        }
+      },
+      {
+        "tableName": "notifications_inbox",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `outerSerial` TEXT, `severity` TEXT NOT NULL, `titleEn` TEXT NOT NULL, `messageEn` TEXT NOT NULL, `titleBn` TEXT NOT NULL, `messageBn` TEXT NOT NULL, `isRead` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `pendingRead` INTEGER NOT NULL, `bannerDismissed` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outerSerial",
+            "columnName": "outerSerial",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "severity",
+            "columnName": "severity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "titleEn",
+            "columnName": "titleEn",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "messageEn",
+            "columnName": "messageEn",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "titleBn",
+            "columnName": "titleBn",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "messageBn",
+            "columnName": "messageBn",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isRead",
+            "columnName": "isRead",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pendingRead",
+            "columnName": "pendingRead",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bannerDismissed",
+            "columnName": "bannerDismissed",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fc89e32b7bb4141ff849bf9d1c39f789')"
+    ]
+  }
+}

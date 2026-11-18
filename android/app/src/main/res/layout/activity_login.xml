@@ -1,0 +1,60 @@
+<androidx.core.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+>
+    <LinearLayout style="@style/Column" android:gravity="center_vertical">
+        <TextView style="@style/Heading" android:text="@string/app_name" />
+        <TextView style="@style/Heading" android:text="@string/login_intro" />
+        <TextView style="@style/Body" android:text="@string/login_help" />
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Line"
+            android:hint="@string/email"
+        >
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/email"
+                style="@style/Line"
+                android:inputType="textEmailAddress"
+                android:autofillHints="username"
+                android:singleLine="true"
+            />
+        </com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Line"
+            android:hint="@string/password"
+        >
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/password"
+                style="@style/Line"
+                android:inputType="textPassword"
+                android:autofillHints="password"
+                android:singleLine="true"
+                android:saveEnabled="false"
+            />
+        </com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/submit"
+            style="@style/Action"
+            android:text="@string/sign_in"
+        />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/guest"
+            style="@style/Quiet"
+            android:text="@string/guest"
+        />
+        <TextView style="@style/Body" android:text="@string/guest_help" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/language"
+            style="@style/Quiet"
+            android:text="@string/language_toggle"
+        />
+        <ProgressBar
+            android:id="@+id/busy"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone"
+        />
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

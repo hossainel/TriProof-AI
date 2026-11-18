@@ -199,6 +199,8 @@ are not an authentication factor; they identify a scanner within the authorized 
 | Method | Path | Auth / role | Purpose |
 |---|---|---|---|
 | POST | `/auth/login` | Public | JWT, public key, offline blacklist |
+| GET | `/offline-blacklist` | Bearer | Fresh offline package in `data`, same format as login’s `data.offline_blacklist`; no password storage or repeat login needed |
+| POST | `/verify/transfer-ticket` | Bearer | Current owner submits `outer_serial`, `inner_serial`, `device_token`; returns `data.ticket` and `expires_at`. Expires in 24h; issuing another replaces it. Recipient supplies optional `transfer_ticket` with an ordinary cross-check of the physical pair. Redemption is single-use under the registry lock. |
 | POST | `/auth/logout` | Bearer | Revoke current token |
 | GET | `/auth/me` | Bearer | Identity and key fingerprint |
 | GET | `/orders` | Bearer | Scoped purchase-order list |
@@ -464,8 +466,9 @@ Verdict precedence:
 | `store_grace_ok` | Different device inside the 5-minute / 100-metre grace window |
 | `clone_detected` | Different device outside grace; serial flagged and both devices alerted |
 
-`feedback_notifications` contains any critical clone/recall notifications created by this
-request. `summary` counts results by verdict.
+`feedback_notifications` contains notices created for the device submitting each scan. A second
+owner receives their own alert via their inbox; their device token is not returned to the scanning
+phone. `summary` counts results by verdict.
 
 ## Notifications
 

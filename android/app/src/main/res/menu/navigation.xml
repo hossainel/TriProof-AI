@@ -1,0 +1,5 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/navScanner" android:icon="@drawable/ic_scan" android:title="@string/scanner" />
+    <item android:id="@+id/navHistory" android:icon="@drawable/ic_history" android:title="@string/history" />
+    <item android:id="@+id/navAlerts" android:icon="@drawable/ic_alert" android:title="@string/alerts" />
+</menu>

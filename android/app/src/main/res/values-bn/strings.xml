@@ -1,0 +1,123 @@
+<resources>
+    <string name="app_name">ট্রাইপ্রুফ এআই স্ক্যানার</string>
+    <string name="brand">ট্রাইপ্রুফ এআই</string>
+    <string name="language_toggle">EN</string>
+    <string name="scanner">স্ক্যানার</string>
+    <string name="history">ইতিহাস</string>
+    <string name="alerts">সতর্কতা</string>
+    <string name="offline_ready">অফলাইন প্রস্তুত · নেটওয়ার্ক ০ মি.সে.</string>
+    <string name="online_synced">অনলাইন · সিঙ্ক সম্পন্ন</string>
+    <string name="online_pending">অনলাইন · সিঙ্ক বাকি</string>
+    <string name="online_guest">সিঙ্ক করতে লগইন করুন</string>
+    <string name="dismiss">সরান</string>
+    <string name="sign_in">লগইন করুন</string>
+    <string name="email">কর্মস্থলের ইমেইল</string>
+    <string name="password">পাসওয়ার্ড</string>
+    <string name="login_intro">কারখানার মান নিয়ন্ত্রক ও পরিদর্শক</string>
+    <string name="login_help">
+        স্ক্যান সিঙ্ক করতে ও রিকলের খবর পেতে কারখানা বা ক্রেতার অ্যাকাউন্ট দিয়ে লগইন করুন।
+    </string>
+    <string name="guest">অফলাইন ভোক্তা হিসেবে চালিয়ে যান</string>
+    <string name="guest_help">
+        ফোনে থাকা যাচাই কী বিমান মোডেও কাজ করে। অনলাইন যাচাইয়ের জন্য পরে লগইন করুন।
+    </string>
+    <string name="credentials_required">ইমেইল ও পাসওয়ার্ড লিখুন।</string>
+    <string name="consumer">ভোক্তার আনবক্সিং</string>
+    <string name="factory">কারখানার প্যাকিং</string>
+    <string name="step_outer">ধাপ ১/২ · বাইরের বাক্স স্ক্যান করুন</string>
+    <string name="step_seal">হাতে সিল পরীক্ষা করুন</string>
+    <string name="step_inner">ধাপ ২/২ · ভেতরের লেবেল স্ক্যান করুন</string>
+    <string name="verifying">এই ফোনে যাচাই হচ্ছে…</string>
+    <string name="seal_prompt">
+        ঘষে তোলার সিল বা সুরক্ষা সিলটি দেখুন। ভাঙা থাকলে থামুন এবং পণ্য আলাদা করুন। অক্ষত থাকলে ভেতরের কোড খুলুন।
+    </string>
+    <string name="intact">সিল অক্ষত · এগিয়ে যান</string>
+    <string name="broken">সিল ভাঙা · থামুন</string>
+    <string name="broken_message">পণ্যটি ব্যবহার বা পাঠাবেন না। ভাঙা সিলের কথা জানান।</string>
+    <string name="torch">ফ্ল্যাশলাইট</string>
+    <string name="manual">হাতে লিখুন</string>
+    <string name="demo">নমুনা পরীক্ষা</string>
+    <string name="reset">আবার শুরু</string>
+    <string name="new_session">নতুন প্যাকিং পর্ব</string>
+    <string name="session_started">নতুন প্যাকিং পর্ব শুরু হয়েছে</string>
+    <string name="camera_access">ক্যামেরা চালু করুন</string>
+    <string name="camera_unavailable">ক্যামেরা পাওয়া যায়নি। লেবেল হাতে লিখতে পারেন।</string>
+    <string name="location">অবস্থান যুক্ত করুন</string>
+    <string name="location_help">
+        অবস্থান দেওয়া ঐচ্ছিক। চালু থাকলে স্ক্যানের সঙ্গে সাম্প্রতিক অবস্থান যুক্ত হবে।
+    </string>
+    <string name="location_unavailable">অবস্থান পাওয়া যায়নি। স্ক্যান চালিয়ে যেতে পারেন।</string>
+    <string name="cancel">বাতিল</string>
+    <string name="continue_action">এগিয়ে যান</string>
+    <string name="invalid_input">উভয় তারিখসহ পুরো বাইরের লেবেল অথবা সম্পূর্ণ বেস৬৪ সিগনেচার লিখুন।</string>
+    <string name="demo_info">
+        প্রশিক্ষণের লেবেল · নমুনা তারিখ: ১৫ জানুয়ারি ২০২৬। এই স্ক্যান ইতিহাসে জমা বা সিঙ্ক হয় না।
+    </string>
+    <string name="demo_genuine">আসল জোড়া পরীক্ষা</string>
+    <string name="demo_expired">মেয়াদোত্তীর্ণ জোড়া পরীক্ষা</string>
+    <string name="demo_forged">বদলানো লেবেল পরীক্ষা</string>
+    <string name="demo_result">প্রশিক্ষণের উদাহরণ</string>
+    <string name="genuine">অফলাইনে আসল প্রমাণিত</string>
+    <string name="repeat_ok">আসল · এই ফোনেই আগে যাচাই হয়েছে</string>
+    <string name="fake">সিগনেচার মেলেনি</string>
+    <string name="expired">মেয়াদ বা প্যাকিংয়ের সময়সীমা পেরিয়েছে</string>
+    <string name="duplicate">একই বাক্স দুবার স্ক্যান!</string>
+    <string name="blacklisted">সংরক্ষিত রিকল বা ক্লোন সতর্কতা</string>
+    <string name="clock">ফোনের ঘড়ি পিছিয়েছে</string>
+    <string name="genuine_msg">
+        সিগনেচার ও তারিখ ঠিক আছে। সিঙ্কের পর সার্ভার মালিকানা, ক্লোন ও সাম্প্রতিক রিকল যাচাই করবে।
+    </string>
+    <string name="repeat_msg">এই ফোনে আগে যাচাই হয়েছে: %1$s।</string>
+    <string name="fake_msg">
+        সতর্কতা: বক্স এবং ভেতরের ট্যাগের সিরিয়াল মিলছে না — পণ্যটি নকল হতে পারে। আলাদা রাখুন ও সরবরাহকারীকে জানান।
+    </string>
+    <string name="expired_msg">
+        ইউনিটটি প্যাক বা ব্যবহার করবেন না। মেয়াদ ও কারখানার ৪৫ দিনের প্যাকিং সীমা পরীক্ষা করুন।
+    </string>
+    <string name="duplicate_msg">
+        এই প্যাকিং পর্বে বাক্সটি আগেই স্ক্যান হয়েছে। পরের বাক্স প্যাক করার আগে এটি আলাদা রাখুন।
+    </string>
+    <string name="blacklist_msg">
+        এই লেবেল বা ব্যাচ সংরক্ষিত সতর্কতা তালিকায় আছে। বিক্রি ও সরবরাহ বন্ধ রাখুন।
+    </string>
+    <string name="clock_msg">যাচাই বন্ধ আছে। ফোনের তারিখ ও সময় ঠিক করে আবার স্ক্যান করুন।</string>
+    <string name="label_details">
+        কারখানা: %1$s   যন্ত্র: %2$s\nব্যাচ: %3$s\nউৎপাদন: %4$s   মেয়াদ: %5$s\nSHA-256: %6$s
+    </string>
+    <string name="transfer">মালিকানা হস্তান্তরের কিউআর</string>
+    <string name="handoff_info">
+        একবার ব্যবহারযোগ্য কিউআরটি গ্রহীতাকে দিন। তিনি এটি বাইরের লেবেল হিসেবে স্ক্যান করে পণ্যের ভেতরের ট্যাগ স্ক্যান করবেন। ২৪ ঘণ্টার মধ্যে সিঙ্ক করতে হবে। নতুন কিউআর নিলে পুরোনোটি বাতিল হবে।
+    </string>
+    <string name="handoff_wait">
+        হস্তান্তরের আগে লগইন করে মূল দাবিটি সিঙ্ক করুন। কিউআর ইস্যু করতে সংযোগ প্রয়োজন।
+    </string>
+    <string name="close">বন্ধ করুন</string>
+    <string name="search">বাইরের সিরিয়াল খুঁজুন</string>
+    <string name="all">সব</string>
+    <string name="pending">সিঙ্ক বাকি</string>
+    <string name="verified">যাচাইকৃত</string>
+    <string name="empty_history">মিল আছে এমন স্ক্যান নেই।</string>
+    <string name="empty_inbox">এই ফোনের জন্য কোনো বার্তা নেই।</string>
+    <string name="mark_read">সব পড়া হয়েছে</string>
+    <string name="unread">অপঠিত</string>
+    <string name="read">পঠিত</string>
+    <string name="cloud_clean">সার্ভারে যাচাইকৃত</string>
+    <string name="cloud_repeat">সার্ভার · একই মালিক</string>
+    <string name="cloud_grace">সার্ভার · চেকআউট ছাড়</string>
+    <string name="cloud_clone">সার্ভার · ক্লোন সতর্কতা</string>
+    <string name="cloud_recall">সার্ভার · রিকল সতর্কতা</string>
+    <string name="cloud_expired">সার্ভার · মেয়াদ শেষ</string>
+    <string name="cloud_forged">সার্ভার · নকল সিগনেচার</string>
+    <string name="cloud_rejected">সার্ভার · রেকর্ড প্রত্যাখ্যাত</string>
+    <string name="local_only">শুধু এই ফোনে</string>
+    <string name="operation_failed">
+        কাজটি সম্পন্ন হয়নি। সংযোগ, লগইন তথ্য ও যাচাই কী পরীক্ষা করে আবার চেষ্টা করুন।
+    </string>
+    <string name="network_error">
+        সার্ভারে সংযোগ নেই। নেটওয়ার্ক পরীক্ষা করুন; অফলাইন স্ক্যানগুলো সংরক্ষিত আছে।
+    </string>
+    <string name="key_error">
+        সার্ভারের যাচাই কী এই অ্যাপের সঙ্গে মিলছে না। প্রশাসকের সঙ্গে যোগাযোগ করুন।
+    </string>
+    <string name="focus_hint">লেবেলের মাঝখানে ফোকাস করতে চাপুন</string>
+</resources>

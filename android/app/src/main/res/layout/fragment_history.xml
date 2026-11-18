@@ -1,0 +1,51 @@
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Column"
+    android:layout_height="match_parent"
+>
+    <androidx.appcompat.widget.SearchView
+        android:id="@+id/search"
+        style="@style/Line"
+        app:iconifiedByDefault="false"
+        app:queryHint="@string/search"
+    />
+    <HorizontalScrollView style="@style/Line" android:scrollbars="none">
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/filters"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:singleSelection="true"
+            app:selectionRequired="true"
+            app:singleLine="true"
+        >
+            <com.google.android.material.chip.Chip
+                android:id="@+id/all"
+                style="@style/FilterChip"
+                android:text="@string/all"
+            />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/pending"
+                style="@style/FilterChip"
+                android:text="@string/pending"
+            />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/verified"
+                style="@style/FilterChip"
+                android:text="@string/verified"
+            />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/alerts"
+                style="@style/FilterChip"
+                android:text="@string/alerts"
+            />
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
+    <TextView android:id="@+id/empty" style="@style/Body" android:text="@string/empty_history" />
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+    />
+</LinearLayout>

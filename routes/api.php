@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AiController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OfflineBlacklistController;
 use App\Http\Controllers\Api\PackingController;
 use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\RecallController;
@@ -19,6 +20,7 @@ Route::post('/auth/login', [AuthController::class, 'login'])
 Route::middleware(['api.auth', 'throttle:triproof-api'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::get('/offline-blacklist', OfflineBlacklistController::class);
 
     Route::get('/orders', [PurchaseOrderController::class, 'index']);
     Route::post('/orders', [PurchaseOrderController::class, 'store']);
@@ -35,6 +37,7 @@ Route::middleware(['api.auth', 'throttle:triproof-api'])->group(function () {
 
 Route::middleware(['api.auth', 'throttle:triproof-verify'])->group(function () {
     Route::post('/verify/online-crosscheck', [VerificationController::class, 'onlineCrosscheck']);
+    Route::post('/verify/transfer-ticket', [VerificationController::class, 'transferTicket']);
 });
 
 Route::middleware(['api.auth', 'throttle:triproof-export'])->group(function () {

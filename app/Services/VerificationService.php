@@ -22,6 +22,7 @@ class VerificationService
         private readonly SerialCryptoService $crypto,
         private readonly NotificationService $notifications,
         private readonly AnomalyAnalysisService $anomalies,
+        private readonly OwnershipTransferService $transfers,
     ) {}
 
     public function crossCheck(array $logs, User $actor): array
@@ -67,7 +68,9 @@ class VerificationService
 
             $results[] = $result;
             foreach ($result['_notifications'] as $notification) {
-                $feedback[$notification->id] = NotificationService::toPayload($notification);
+                if (hash_equals((string) $notification->device_token, (string) $item['log']['device_token'])) {
+                    $feedback[$notification->id] = NotificationService::toPayload($notification);
+                }
             }
             unset($result['_notifications']);
 
@@ -199,7 +202,10 @@ class VerificationService
                 }
             } elseif ($scannedAt->toDateString() > $registry->exp_date->toDateString()) {
                 $verdict = CloudVerdict::Expired;
-            } elseif ($registry->claimed_device_token === null) {
+            } elseif ($registry->claimed_device_token === null || isset($log['transfer_ticket'])) {
+                if (isset($log['transfer_ticket'])) {
+                    $this->transfers->redeem($registry, $log['transfer_ticket'], $deviceToken);
+                }
                 $registry->claimed_device_token = $deviceToken;
                 $registry->claimed_at = $scannedAt;
                 $registry->claimed_gps = $lat !== null && $lng !== null
@@ -268,7 +274,7 @@ class VerificationService
                     'prod_date' => $registry->prod_date?->toDateString(),
                     'exp_date' => $registry->exp_date?->toDateString(),
                 ] : null,
-                'feedback_notification_ids' => array_map(fn ($n) => $n->id, $createdNotifications),
+                'feedback_notification_ids' => array_values(array_map(fn ($n) => $n->id, array_filter($createdNotifications, fn ($n) => $n->device_token === $deviceToken))),
                 'message_en' => $messageEn,
                 'message_bn' => $messageBn,
                 'duplicate' => false,

@@ -8,6 +8,9 @@ recalls, reconstructs rework lineage, and produces bilingual English/Bangla comp
 The application is built with Laravel 12, native PHP sodium, MySQL/MariaDB, Blade, Tailwind CSS 4,
 Chart.js, Leaflet, and a provider-agnostic AI layer with a deterministic fallback.
 
+The native Kotlin [TriProof AI Scanner](android/README.md) lives in `android/`. It verifies signed
+labels offline, stores scan history on the phone, and syncs it to this API when authenticated.
+
 ## What it solves
 
 - Quota-locked serial issuance prevents ghost overproduction and label copying.
