@@ -13,6 +13,7 @@
   exports, schema, docs, and deployment notes are complete.
 - Final gates: 45 tests / 195 assertions pass, Pint passes, Vite production build passes,
   `view:cache`, route caching, and `php artisan optimize` verified.
+- GitHub Actions CI runs the MySQL/MariaDB test suite, Pint, and the Vite production build.
 - Local smoke checks passed: health, public key, all three role logins/dashboards, verifier,
   API login/orders/CSV export, root redirect, and login page.
 
