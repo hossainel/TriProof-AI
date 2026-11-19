@@ -135,6 +135,34 @@ class OrderController extends Controller
             : $exports->pdf($po, $batch ? strtoupper($batch) : null);
     }
 
+    public function qrStickers(
+        Request $request,
+        PurchaseOrder $po,
+        BatchExportService $exports,
+    ): Response {
+        Gate::authorize('qrStickers', $po);
+
+        $batch = $request->query('batch');
+        if ($batch !== null && (! is_string($batch) || ! preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{0,15}$/', $batch))) {
+            throw new BusinessRuleException('invalid_batch', 'The batch filter is invalid.');
+        }
+
+        $limit = $request->query('limit');
+        if ($limit !== null && (! is_scalar($limit) || ! preg_match('/^[0-9]+$/', (string) $limit))) {
+            throw new BusinessRuleException('invalid_limit', 'The sticker limit must be a whole number.', 422);
+        }
+
+        $response = $exports->qrStickers(
+            $po,
+            $limit === null ? null : (int) $limit,
+            $batch ? strtoupper($batch) : null,
+            ! $request->boolean('download'),
+        );
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
+
+        return $response;
+    }
+
     public function merkle(PurchaseOrder $po, MerkleService $merkle): JsonResponse
     {
         Gate::authorize('view', $po);

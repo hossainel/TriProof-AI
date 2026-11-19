@@ -30,6 +30,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('/orders/{po}/export', [OrderController::class, 'export'])->name('orders.export');
+    Route::get('/orders/{po}/qr-stickers', [OrderController::class, 'qrStickers'])
+        ->middleware('throttle:triproof-export')
+        ->name('orders.qr-stickers');
     Route::get('/orders/{po}/merkle', [OrderController::class, 'merkle'])->name('orders.merkle');
     Route::get('/orders/{po}/lookup', [OrderController::class, 'lookup'])->name('orders.lookup');
 

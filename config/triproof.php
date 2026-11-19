@@ -25,9 +25,13 @@ return [
         'max_future_seconds' => 300,
     ],
 
+    // Used by the QR sticker sheet and kept alongside the legacy export setting for compatibility.
+    'max_pdf_units' => (int) env('MAX_PDF_UNITS', 20000),
+
     'exports' => [
         'max_generate' => (int) env('MAX_BATCH_GENERATE', 50000),
         'max_pdf_units' => (int) env('MAX_PDF_UNITS', 20000),
+        'qr_preview_pairs' => (int) env('QR_PREVIEW_PAIRS', 2),
     ],
 
     'ai' => [

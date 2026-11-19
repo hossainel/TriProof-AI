@@ -6,6 +6,10 @@
     $visionEnabled = in_array(config('triproof.ai.provider'), ['openai', 'gemini'], true)
         && filled(config('triproof.ai.api_key'));
 
+    $printOrders = auth()->user()?->isAdmin()
+        ? \App\Models\PurchaseOrder::query()->where('generated_count', '>', 0)->latest()->limit(4)->get(['id', 'po_number'])
+        : \App\Models\PurchaseOrder::query()->visibleTo(auth()->user())->where('generated_count', '>', 0)->latest()->limit(4)->get(['id', 'po_number']);
+
     $verdict = $result['verdict'] ?? null;
     $positive = in_array($verdict, ['verified_clean', 'owner_repeat_ok', 'store_grace_ok'], true);
     $critical = in_array($verdict, ['clone_detected', 'forged_signature', 'recalled_batch'], true);
@@ -27,10 +31,18 @@
                 <h2 class="mt-3 text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{{ __('triproof.verify.title') }}</h2>
                 <p class="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">{{ __('triproof.verify.subtitle') }}</p>
             </div>
-            <a href="{{ route('well-known.key') }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
-                <x-icon name="key" class="h-4 w-4" />
-                {{ __('triproof.nav.public_key') }}
-            </a>
+            <div class="flex flex-wrap items-center gap-2">
+                @foreach ($printOrders as $printOrder)
+                    <a href="{{ route('orders.qr-stickers', ['po' => $printOrder, 'limit' => config('triproof.exports.qr_preview_pairs', 2)]) }}" target="_blank" rel="noopener" class="btn btn-primary">
+                        <x-icon name="download" class="h-4 w-4" />
+                        {{ __('triproof.orders.qr_verifier_short', ['po' => $printOrder->po_number]) }}
+                    </a>
+                @endforeach
+                <a href="{{ route('well-known.key') }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+                    <x-icon name="key" class="h-4 w-4" />
+                    {{ __('triproof.nav.public_key') }}
+                </a>
+            </div>
         </div>
     </section>
 

@@ -27,6 +27,13 @@ class PurchaseOrderPolicy
         return $this->view($user, $order);
     }
 
+    public function qrStickers(User $user, PurchaseOrder $order): bool
+    {
+        // Buyers, administrators and factory QA (scoped to their factory) may print labels for
+        // orders they can already export.
+        return $this->export($user, $order);
+    }
+
     public function pack(User $user, PurchaseOrder $order): bool
     {
         return $user->isAdmin()

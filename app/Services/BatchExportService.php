@@ -6,6 +6,10 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\PurchaseOrder;
 use App\Models\SerialRegistry;
 use Barryvdh\DomPDF\Facade\Pdf;
+use chillerlan\QRCode\Common\EccLevel;
+use chillerlan\QRCode\Output\QRGdImagePNG;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -94,6 +98,81 @@ class BatchExportService
         ])->setPaper('a4', 'landscape');
 
         return $pdf->download($this->filename($order, $batchId).'.pdf');
+    }
+
+    /**
+     * Render paired outer/inner QR stickers. Serials are signed exactly as generated and the PNGs
+     * are produced in-process with GD: no font, renderer or QR HTTP service is contacted.
+     */
+    public function qrStickers(
+        PurchaseOrder $order,
+        ?int $limit = null,
+        ?string $batchId = null,
+        bool $inline = true,
+    ): Response {
+        $query = $order->serials();
+        if ($batchId) {
+            $query->where('batch_id', $batchId);
+        }
+
+        $max = max(1, (int) config('triproof.max_pdf_units', config('triproof.exports.max_pdf_units', 20000)));
+        if ($limit !== null && ($limit < 1 || $limit > $max)) {
+            throw new BusinessRuleException(
+                'invalid_limit',
+                "The sticker limit must be between 1 and {$max}.",
+                422,
+                ['limit' => $limit, 'max' => $max]
+            );
+        }
+
+        $selected = (clone $query)->orderBy('unit_number')->limit($limit ?? $max)->get();
+        if ($selected->isEmpty()) {
+            throw new BusinessRuleException('empty_batch', 'Generate serials before printing QR stickers.');
+        }
+
+        $total = (clone $query)->count();
+        $serials = $selected->map(fn (SerialRegistry $serial) => [
+            'outer_serial' => $serial->outer_serial,
+            'inner_serial' => $serial->inner_serial,
+            'unit_hash' => $serial->unit_hash,
+            'factory_id' => $serial->factory_id,
+            'machine_id' => $serial->machine_id,
+            'batch_id' => $serial->batch_id,
+            'exp_date' => $serial->exp_date?->toDateString() ?? '—',
+            'outer_qr' => $this->qr($serial->outer_serial, EccLevel::M),
+            'inner_qr' => $this->qr($serial->inner_serial, EccLevel::Q),
+        ])->all();
+
+        $pdf = Pdf::loadView('exports.qr-labels-pdf', [
+            'order' => $order,
+            'serials' => $serials,
+            'printedPairs' => count($serials),
+            'totalPairs' => $total,
+            'truncated' => $total > count($serials),
+            'merkle' => $order->merkle_root_hash ?: '—',
+            'printedAt' => now(),
+        ])->setPaper('a4', 'portrait');
+
+        $filename = 'triproof-qr-stickers-'.$order->po_number.'.pdf';
+
+        return $inline ? $pdf->stream($filename) : $pdf->download($filename);
+    }
+
+    private function qr(string $data, int $ecc): string
+    {
+        $png = (new QRCode(new QROptions([
+            'outputInterface' => QRGdImagePNG::class,
+            'eccLevel' => $ecc,
+            'quietzoneSize' => 4,
+            'scale' => 12,
+            'outputBase64' => false,
+        ])))->render($data);
+
+        if (! is_string($png) || ! str_starts_with($png, "\x89PNG")) {
+            throw new BusinessRuleException('qr_render_failed', 'Unable to render a local QR sticker.', 500);
+        }
+
+        return 'data:image/png;base64,'.base64_encode($png);
     }
 
     public function filename(PurchaseOrder $order, ?string $batchId = null): string

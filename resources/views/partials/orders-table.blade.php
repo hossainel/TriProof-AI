@@ -97,6 +97,22 @@
                                 @endif
 
                                 @if ($order->total_units > 0)
+                                    <a
+                                        href="{{ route('orders.qr-stickers', ['po' => $order, 'limit' => config('triproof.exports.qr_preview_pairs', 2)]) }}"
+                                        target="_blank"
+                                        rel="noopener"
+                                        class="btn btn-secondary btn-xs"
+                                        title="{{ __('triproof.orders.qr_preview') }}"
+                                        aria-label="{{ __('triproof.orders.qr_preview') }}"
+                                    >
+                                        <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                            <path d="M3 3h7v7H3V3Zm2 2v3h3V5H5Zm9-2h7v7h-7V3Zm2 2v3h3V5h-3ZM3 14h7v7H3v-7Zm2 2v3h3v-3H5Zm9-2h2v2h-2v-2Zm4 0h2v2h-2v-2Zm-4 4h2v3h-2v-3Zm4 0h2v3h-2v-3Z" />
+                                        </svg>
+                                        QR
+                                    </a>
+                                    <a href="{{ route('orders.qr-stickers', ['po' => $order]) }}" target="_blank" rel="noopener" class="btn btn-ghost btn-xs" title="{{ __('triproof.orders.qr_all') }}">
+                                        {{ __('triproof.orders.qr_all') }}
+                                    </a>
                                     <a href="{{ route('orders.export', ['po' => $order, 'format' => 'csv']) }}" class="btn btn-ghost btn-xs" title="{{ __('triproof.orders.export_csv') }}">
                                         <x-icon name="download" class="h-3.5 w-3.5" />
                                         {{ __('triproof.orders.export_csv') }}

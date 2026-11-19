@@ -21,6 +21,14 @@
                         <x-icon name="download" class="h-3.5 w-3.5" />
                         PDF
                     </a>
+                    <a
+                        href="{{ route('orders.qr-stickers', ['po' => $generated['po_id'], 'batch' => $generated['batch'], 'limit' => config('triproof.exports.qr_preview_pairs', 2)]) }}"
+                        target="_blank"
+                        rel="noopener"
+                        class="btn btn-primary btn-xs"
+                    >
+                        {{ __('triproof.orders.qr_preview_named') }}
+                    </a>
                 </div>
             </div>
 
