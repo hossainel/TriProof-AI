@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Models\User;
 use App\Services\Auth\JwtService;
+use App\Services\Crypto\MasterKeyService;
 use App\Services\OfflineBlacklistService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -17,7 +18,7 @@ class AuthController extends Controller
 {
     private const DUMMY_HASH = '$2y$12$vmuZPj/Tl0rE9VbVd2NtyevI1Tx05EzDiaGtfzPVY/wZtXUFYGOke';
 
-    public function login(LoginRequest $request, JwtService $jwt, OfflineBlacklistService $blacklist): JsonResponse
+    public function login(LoginRequest $request, JwtService $jwt, OfflineBlacklistService $blacklist, MasterKeyService $keys): JsonResponse
     {
         $email = strtolower(trim((string) $request->input('email')));
         $password = (string) $request->input('password');
@@ -49,6 +50,8 @@ class AuthController extends Controller
                 'public_key_base64' => $publicKey !== '' ? $publicKey : null,
                 'key_fingerprint' => $decodedPublic ? hash('sha256', $decodedPublic) : null,
                 'configured' => $decodedPublic !== false && $decodedPublic !== null && strlen((string) $decodedPublic) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES,
+                'key_ring' => $keys->keyRing(),
+                'active_keys' => array_values(array_filter($keys->keyRing(), fn ($key) => $key['status'] === 'active')),
             ],
             'offline_blacklist' => $blacklistPackage,
             'api_version' => 'v1',
@@ -63,7 +66,7 @@ class AuthController extends Controller
         return ApiResponse::success(null, 'Token revoked. Discard it from the device.');
     }
 
-    public function me(Request $request): JsonResponse
+    public function me(Request $request, MasterKeyService $keys): JsonResponse
     {
         $publicKey = (string) config('triproof.crypto.public_key');
         $decoded = base64_decode($publicKey, true);
@@ -74,6 +77,7 @@ class AuthController extends Controller
                 'algorithm' => 'Ed25519',
                 'public_key_base64' => $publicKey !== '' ? $publicKey : null,
                 'key_fingerprint' => $decoded ? hash('sha256', $decoded) : null,
+                'key_ring' => $keys->keyRing(),
             ],
         ]);
     }

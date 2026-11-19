@@ -198,7 +198,10 @@ are not an authentication factor; they identify a scanner within the authorized 
 
 | Method | Path | Auth / role | Purpose |
 |---|---|---|---|
-| POST | `/auth/login` | Public | JWT, public key, offline blacklist |
+| POST | `/auth/login` | Public | JWT, public key ring, offline blacklist with Bloom filter |
+| POST | `/devices/attest` | JWT | Register the Android device Ed25519 public key |
+| POST | `/cartons/aggregate` | JWT | Seal a 2-100 unit master carton and return its signed QR payload |
+| GET | `/cartons/{carton_serial}/verify` | JWT | Carton signature, manifest and Merkle inclusion proofs |
 | GET | `/offline-blacklist` | Bearer | Fresh offline package in `data`, same format as login’s `data.offline_blacklist`; no password storage or repeat login needed |
 | POST | `/verify/transfer-ticket` | Bearer | Current owner submits `outer_serial`, `inner_serial`, `device_token`; returns `data.ticket` and `expires_at`. Expires in 24h; issuing another replaces it. Recipient supplies optional `transfer_ticket` with an ordinary cross-check of the physical pair. Redemption is single-use under the registry lock. |
 | POST | `/auth/logout` | Bearer | Revoke current token |
@@ -775,3 +778,56 @@ curl -sS "$BASE/orders/12/export?format=csv&batch=B01" \
   -H "Authorization: Bearer $TOKEN" \
   -o batch-B01.csv
 ```
+
+## Enterprise V2 additions
+
+### Versioned keys and DPP serials
+
+Legacy v1 serials remain unprefixed and are treated as `K00` using the `.env` universal public key.
+When a purchase order carries `dpp_metadata`, new serials use:
+
+```
+{KNN}-{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{ProdYYYYMMDD}|{ExpYYYYMMDD}|DPP:{8-HEX-DIGEST}
+```
+
+The complete string is signed with the buyer's active key (or the global active key). `/.well-known/triproof-key.json`
+and login expose `key_ring`, `active_keys` and `verify_only_keys` with SHA-256 fingerprints. Retired keys stay in
+`verify_only` status so existing inventory remains verifiable.
+
+Rotate with `php artisan triproof:keys:rotate --key-version=K02 [--buyer=ID]`. Laravel reserves the global `--version`
+option, so the command accepts `--key-version` or a positional version argument.
+
+### Carton aggregation
+
+```bash
+curl -sS -X POST "$BASE/cartons/aggregate" \
+  -H "Authorization: Bearer $TOKEN" -H 'Accept: application/json' \
+  -d 'po_id=12&factory_id=DHK04&batch_id=B09&outer_serial[]=...&outer_serial[]=...' | jq
+
+curl -sS "$BASE/cartons/CTN-K01-DHK04-B09-0001/verify" \
+  -H "Authorization: Bearer $TOKEN" | jq
+```
+
+The returned `qr_payload` is `CTN-...|merkle_root|unit_count|signature`. Verification returns a signed manifest and
+Merkle inclusion proofs for every unit.
+
+### Bloom-filter offline blacklist
+
+The v1 JSON package is unchanged for old clients and now includes optional `bloom` parameters
+(`bloom_bits_b64`, `m_bits`, `k_hashes`, `seed`, `entries`, `estimated_fp_rate`). The binary Bloom filter carries
+30,000 target entries while the gzip+Base64 response stays below 50 KB. The bit budget yields roughly **1%**
+false-positive rate at that size; the exact estimate is in the package. A probable hit is an amber "connect to
+confirm" warning, never a final counterfeit verdict.
+
+### Device attestation and replay protection
+
+Register a raw Base64 Ed25519 public key with `POST /devices/attest`. Cross-check logs may include
+`scan_seq`, `device_signature` over `{sync_uuid}|{scan_seq}|{outer_serial}`, and `contact_hash` (SHA-256 of a
+consumer contact). For attested devices, a non-increasing `scan_seq` is rejected with `scan_seq_replay` (409),
+an invalid signature with `device_signature_invalid` (422). Clone/recall verdicts write the in-app inbox and
+dispatch an optional webhook from `ALERT_WEBHOOK_URL`.
+
+### Public smart URL
+
+`GET /v/{payload}` is public and renders the product passport for a standard phone camera. The outer QR
+contains `{APP_URL}/v/{OUTER_SERIAL}`; the inner QR contains the private signature only.

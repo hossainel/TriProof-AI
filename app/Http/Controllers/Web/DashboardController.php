@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Web;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\AiAnomalyReport;
+use App\Models\BlockchainAnchor;
 use App\Models\PurchaseOrder;
 use App\Models\RecallEvent;
 use App\Models\SerialRegistry;
 use App\Models\User;
+use App\Services\Crypto\MasterKeyService;
 use App\Services\Crypto\SerialCryptoService;
 use App\Support\DeviceToken;
 use Illuminate\Http\Request;
@@ -17,10 +19,10 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request, SerialCryptoService $crypto): View
+    public function index(Request $request, SerialCryptoService $crypto, MasterKeyService $keys): View
     {
         $user = $request->user();
-        $data = $this->overview($user, $crypto);
+        $data = $this->overview($user, $crypto, $keys);
 
         return match ($user->role) {
             UserRole::Admin => view('dashboard.admin', $data),
@@ -29,7 +31,7 @@ class DashboardController extends Controller
         };
     }
 
-    private function overview(User $user, SerialCryptoService $crypto): array
+    private function overview(User $user, SerialCryptoService $crypto, MasterKeyService $keys): array
     {
         $orderQuery = PurchaseOrder::query()->visibleTo($user);
         $poIdsQuery = (clone $orderQuery)->select('purchase_orders.id');
@@ -172,6 +174,8 @@ class DashboardController extends Controller
             ],
             'isAdmin' => $user->isAdmin(),
             'accessibleFactories' => $accessibleFactories,
+            'keyRing' => $keys->keyRing(),
+            'anchors' => BlockchainAnchor::query()->latest('anchor_date')->limit(8)->get(),
         ];
     }
 

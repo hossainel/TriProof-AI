@@ -266,3 +266,25 @@ then writes/upserts `ai_anomaly_reports` with plain-Bangla supervisor actions.
   and operations complete.
 - Redis/queue optional; v1 notifications are written synchronously and AI enrichment may fall
   back deterministically so no worker is required to stay correct.
+
+## 13. Enterprise V2
+
+V2 is additive: v1 unprefixed `K00` serials, the `logs` cross-check envelope, mobile endpoints,
+the demo simulator trust root, and the English `O1/I1` sticker sheet remain intact.
+
+- **Key lifecycle:** `signing_keys` stores versioned Ed25519 keys with encrypted private material,
+  buyer scoping, and `active|verify_only|revoked` status. `MasterKeyService` resolves the key version
+  from the serial; unknown versions fail closed. The key ring is published by well-known/login.
+- **DPP:** purchase orders carry canonical `dpp_metadata` and an 8-hex `dpp_digest`. The digest is
+  embedded in the signed V2 outer serial, making sustainability claims tamper-evident.
+- **Logistics:** cartons aggregate 2-100 units, compute a deterministic Merkle root over
+  `unit_hash`, sign `carton_serial|root|count`, and expose unit manifests with inclusion proofs.
+- **Offline warning scale:** a binary Bloom filter extends the 50 KB package to a 30,000-entry
+  target. It is a probable-match warning, not a verdict. The wire cap forces ~1% FPR; the payload
+  reports the estimate rather than claiming a mathematically impossible 0.1% at that budget.
+- **Anchoring:** daily `MerkleAnchorService` receipts are signed deterministically with
+  `local_ledger` fallback and displayed in the Merkle audit modal.
+- **Anti-replay:** device Ed25519 keys, monotonic `scan_seq`, signed sync payloads, and optional
+  webhook alerts complement the existing `sync_uuid` idempotency.
+- **Smart URLs:** `GET /v/{payload}` gives zero-app consumers a public product/DPP page. Outer QR
+  codes contain the URL; inner QR codes contain only the private signature.

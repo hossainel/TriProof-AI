@@ -3,12 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\Crypto\MasterKeyService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
 class WellKnownController extends Controller
 {
-    public function __invoke(): JsonResponse
+    public function __invoke(MasterKeyService $keys): JsonResponse
     {
         $publicBase64 = (string) config('triproof.crypto.public_key');
         $public = base64_decode($publicBase64, true);
@@ -17,16 +18,23 @@ class WellKnownController extends Controller
             return ApiResponse::error('crypto_unconfigured', 'The public verification key is not configured.', 503);
         }
 
+        $ring = $keys->keyRing();
+
         return ApiResponse::success([
             'issuer' => 'TriProof AI',
             'algorithm' => 'Ed25519',
             'public_key_base64' => $publicBase64,
             'key_fingerprint' => hash('sha256', $public),
             'key_id' => substr(hash('sha256', $public), 0, 32),
-            'serial_format' => '{FactoryID}-{MachineID}-{BatchID}-{UnitNumber:06d}|{ProdYYYYMMDD}|{ExpYYYYMMDD}',
+            'key_ring' => $ring,
+            'active_keys' => array_values(array_filter($ring, fn ($key) => $key['status'] === 'active')),
+            'verify_only_keys' => array_values(array_filter($ring, fn ($key) => $key['status'] === 'verify_only')),
+            'key_rotation_months' => (int) config('triproof.keys.rotation_months', 6),
+            'serial_format' => '{KEY_VER}-{FactoryID}-{MachineID}-{BatchID}-{UnitNumber:06d}|{ProdYYYYMMDD}|{ExpYYYYMMDD}|DPP:{DPP_DIGEST}',
+            'legacy_serial_format' => '{FactoryID}-{MachineID}-{BatchID}-{UnitNumber:06d}|{ProdYYYYMMDD}|{ExpYYYYMMDD}',
             'inner_serial_format' => 'Base64(Ed25519 detached signature of outer serial)',
             'unit_hash' => 'SHA-256(outer_serial + "|" + inner_serial)',
-            'offline_trust_model' => 'Verify the Ed25519 signature locally; cloud cross-check establishes ownership and recall state.',
+            'offline_trust_model' => 'Verify the Ed25519 signature locally using the versioned key ring; cloud cross-check establishes ownership and recall state.',
         ]);
     }
 }

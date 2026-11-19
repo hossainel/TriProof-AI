@@ -11,6 +11,8 @@ use Illuminate\Support\Str;
 
 class PurchaseOrderService
 {
+    public function __construct(private readonly DppService $dpp) {}
+
     public function create(User $actor, array $data): PurchaseOrder
     {
         if (! $actor->isAdmin() && ! $actor->isBuyer()) {
@@ -77,6 +79,8 @@ class PurchaseOrderService
                 'generated_count' => 0,
                 'factory_expiry_days' => $factoryDays,
                 'retail_expiry_days' => $retailDays,
+                'dpp_metadata' => $data['dpp_metadata'] ?? null,
+                'dpp_digest' => ! empty($data['dpp_metadata']) ? $this->dpp->digest($data['dpp_metadata']) : null,
             ]);
         });
     }

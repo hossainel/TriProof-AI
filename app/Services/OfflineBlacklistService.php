@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\SerialStatus;
 use App\Models\RecallEvent;
 use App\Models\SerialRegistry;
+use App\Support\BloomFilter;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -82,6 +83,19 @@ class OfflineBlacklistService
         $truncated = $clonedTotal > count($cloned);
         $clonedTotal = max($clonedTotal, count($cloned));
 
+        // The bloom filter carries every flagged unit hash; explicit lists remain for actionable
+        // batch recalls. The package format stays v1 so older Android builds keep working.
+        $flaggedHashes = SerialRegistry::query()
+            ->whereIn('status', [SerialStatus::ClonedFlagged->value, SerialStatus::Recalled->value])
+            ->pluck('unit_hash')
+            ->all();
+        $bloom = BloomFilter::build(
+            $flaggedHashes,
+            max((int) config('triproof.blacklist.bloom_target_entries', 30000), count($flaggedHashes)),
+            0.001,
+            (int) config('triproof.blacklist.bloom_max_bits', 288000),
+        );
+
         do {
             $payload = [
                 'format' => 'triproof-offline-blacklist/v1',
@@ -94,6 +108,7 @@ class OfflineBlacklistService
                     'cloned_serials_total' => $clonedTotal,
                 ],
                 'truncated' => $truncated,
+                'bloom' => $bloom,
             ];
 
             $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -142,6 +157,15 @@ class OfflineBlacklistService
             'cloned_serials' => $payload['counts']['cloned_serials'],
             'cloned_serials_total' => $payload['counts']['cloned_serials_total'],
             'truncated' => $payload['truncated'],
+            'bloom' => [
+                'bloom_bits_b64' => $bloom['bloom_bits_b64'],
+                'm_bits' => $bloom['m_bits'],
+                'k_hashes' => $bloom['k_hashes'],
+                'seed' => $bloom['seed'],
+                'entries' => $bloom['entries'],
+                'target_entries' => $bloom['target_entries'],
+                'estimated_fp_rate' => $bloom['estimated_fp_rate'],
+            ],
         ];
     }
 }

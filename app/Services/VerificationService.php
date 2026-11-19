@@ -6,6 +6,7 @@ use App\Enums\CloudVerdict;
 use App\Enums\ScanMode;
 use App\Enums\SerialStatus;
 use App\Exceptions\BusinessRuleException;
+use App\Models\DeviceAttestation;
 use App\Models\ScanLog;
 use App\Models\SerialRegistry;
 use App\Models\User;
@@ -23,6 +24,7 @@ class VerificationService
         private readonly NotificationService $notifications,
         private readonly AnomalyAnalysisService $anomalies,
         private readonly OwnershipTransferService $transfers,
+        private readonly AlertWebhookService $alerts,
     ) {}
 
     public function crossCheck(array $logs, User $actor): array
@@ -169,7 +171,26 @@ class VerificationService
             throw new BusinessRuleException('scan_fields_required', 'outer_serial, inner_serial and device_token are required.');
         }
 
-        return DB::transaction(function () use ($syncUuid, $outer, $inner, $deviceToken, $actor, $mode, $scannedAt, $log) {
+        $attestation = DeviceAttestation::query()->where('device_token', $deviceToken)->first();
+        $scanSeq = isset($log['scan_seq']) ? (int) $log['scan_seq'] : null;
+
+        if ($attestation && $scanSeq !== null) {
+            if ($scanSeq <= (int) $attestation->last_scan_seq) {
+                throw new BusinessRuleException('scan_seq_replay', 'The device scan sequence is stale; replay rejected.', 409);
+            }
+
+            if (! empty($log['device_signature'])) {
+                $signature = base64_decode((string) $log['device_signature'], true);
+                $publicKey = base64_decode((string) $attestation->device_public_key_b64, true);
+                $message = "{$syncUuid}|{$scanSeq}|{$outer}";
+                if ($signature === false || $publicKey === false
+                    || ! sodium_crypto_sign_verify_detached($signature, $message, $publicKey)) {
+                    throw new BusinessRuleException('device_signature_invalid', 'The device signature did not verify.', 422);
+                }
+            }
+        }
+
+        return DB::transaction(function () use ($syncUuid, $outer, $inner, $deviceToken, $actor, $mode, $scannedAt, $log, $attestation, $scanSeq) {
             $duplicate = ScanLog::query()->where('sync_uuid', $syncUuid)->first();
             if ($duplicate) {
                 return $this->duplicateResult($duplicate);
@@ -202,9 +223,11 @@ class VerificationService
                 }
             } elseif ($scannedAt->toDateString() > $registry->exp_date->toDateString()) {
                 $verdict = CloudVerdict::Expired;
-            } elseif ($registry->claimed_device_token === null || isset($log['transfer_ticket'])) {
-                if (isset($log['transfer_ticket'])) {
+            } elseif ($registry->claimed_device_token === null || ! empty($log['transfer_ticket']) || ! empty($log['transfer'])) {
+                if (! empty($log['transfer_ticket'])) {
                     $this->transfers->redeem($registry, $log['transfer_ticket'], $deviceToken);
+                } elseif (! empty($log['transfer'])) {
+                    $this->transfers->redeemFlutterPayload($registry, $log['transfer'], $deviceToken);
                 }
                 $registry->claimed_device_token = $deviceToken;
                 $registry->claimed_at = $scannedAt;
@@ -254,6 +277,20 @@ class VerificationService
                 'scanned_at' => $scannedAt,
                 'synced_at' => now(),
             ]);
+
+            if ($attestation && $scanSeq !== null) {
+                $attestation->update(['last_scan_seq' => $scanSeq]);
+            }
+
+            if (in_array($verdict, [CloudVerdict::CloneDetected, CloudVerdict::RecalledBatch], true)) {
+                $this->alerts->notify($verdict->value, [
+                    'outer_serial' => $outer,
+                    'device_token' => DeviceToken::mask($deviceToken),
+                    'contact_hash' => $log['contact_hash'] ?? null,
+                    'verdict' => $verdict->value,
+                    'scanned_at' => $scannedAt->toIso8601String(),
+                ]);
+            }
 
             [$messageEn, $messageBn] = $this->verdictMessage($verdict, $registry, $claimedNow);
 

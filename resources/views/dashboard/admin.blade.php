@@ -58,6 +58,33 @@
     @include('partials.generated-batch')
     @include('partials.stats')
 
+    <section id="key-ring" class="card mt-6 overflow-hidden">
+        <div class="card-header">
+            <div>
+                <p class="section-kicker">Ed25519 key lifecycle</p>
+                <h2 class="section-title">Public Key Ring &amp; Rotation</h2>
+            </div>
+            <span class="badge badge-neutral">{{ count($keyRing) }} keys</span>
+        </div>
+        <div class="overflow-x-auto p-5">
+            <table class="data-table">
+                <thead><tr><th>Version</th><th>Status</th><th>Buyer</th><th>Fingerprint</th><th>Activated</th></tr></thead>
+                <tbody>
+                    @foreach ($keyRing as $key)
+                        <tr>
+                            <td class="font-mono font-semibold">{{ $key['key_version'] }}</td>
+                            <td><span class="badge {{ $key['status'] === 'active' ? 'badge-success' : 'badge-neutral' }}">{{ $key['status'] }}</span></td>
+                            <td>{{ $key['buyer_id'] ? 'Buyer #'.$key['buyer_id'] : 'Global' }}</td>
+                            <td class="font-mono text-[10px]">{{ substr($key['key_fingerprint'], 0, 16) }}…</td>
+                            <td>{{ $key['activated_at'] ?? 'legacy' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+            <p class="hint mt-3">Rotate with <code class="font-mono">php artisan triproof:keys:rotate --version=K02</code>. Retired keys remain verify-only so retail inventory stays verifiable.</p>
+        </div>
+    </section>
+
     <section id="orders" class="card mt-6 overflow-hidden">
         <div class="card-header">
             <div>

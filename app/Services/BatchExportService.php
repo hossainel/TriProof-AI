@@ -140,8 +140,9 @@ class BatchExportService
                 'machine_id' => $serial->machine_id,
                 'batch_id' => $serial->batch_id,
                 'exp_date' => $serial->exp_date?->toDateString() ?? '—',
-                'outer_qr' => $this->qr($serial->outer_serial, EccLevel::M),
-                'inner_qr' => $this->qr($serial->inner_serial, EccLevel::Q),
+                'outer_url' => rtrim((string) config('app.url'), '/').'/v/'.$serial->outer_serial,
+                'outer_qr' => $this->qr(rtrim((string) config('app.url'), '/').'/v/'.$serial->outer_serial, EccLevel::M, 16),
+                'inner_qr' => $this->qr($serial->inner_serial, EccLevel::Q, 14),
             ])->all(),
             'printedPairs' => $selected->count(),
             'totalPairs' => $total,
@@ -166,13 +167,13 @@ class BatchExportService
         return $inline ? $pdf->stream($filename) : $pdf->download($filename);
     }
 
-    private function qr(string $data, int $ecc): string
+    private function qr(string $data, int $ecc, int $scale = 12): string
     {
         $png = (new QRCode(new QROptions([
             'outputInterface' => QRGdImagePNG::class,
             'eccLevel' => $ecc,
             'quietzoneSize' => 4,
-            'scale' => 12,
+            'scale' => $scale,
             'outputBase64' => false,
         ])))->render($data);
 

@@ -1,18 +1,9 @@
--- TriProof AI canonical MySQL schema (mirrors database/migrations).
+-- TriProof AI canonical MySQL schema (mirrors database/migrations; V2).
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*M!999999\- enable the sandbox mode */
+
 /*!40101 SET NAMES utf8mb4 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 DROP TABLE IF EXISTS `ai_anomaly_reports`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `ai_anomaly_reports` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `po_id` bigint(20) unsigned DEFAULT NULL,
@@ -31,10 +22,22 @@ CREATE TABLE `ai_anomaly_reports` (
   KEY `ai_anomaly_reports_status_index` (`status`),
   CONSTRAINT `ai_anomaly_reports_po_id_foreign` FOREIGN KEY (`po_id`) REFERENCES `purchase_orders` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `blockchain_anchors`;
+CREATE TABLE `blockchain_anchors` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `anchor_date` date NOT NULL,
+  `batch_merkle_root` char(64) NOT NULL,
+  `po_ids_json` longtext NOT NULL,
+  `provider` enum('opentimestamps','polygon_rpc','local_ledger') NOT NULL,
+  `tx_hash_or_receipt` text NOT NULL,
+  `status` enum('pending','anchored','verified') NOT NULL DEFAULT 'pending',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `blockchain_anchors_anchor_date_status_index` (`anchor_date`,`status`),
+  KEY `blockchain_anchors_batch_merkle_root_index` (`batch_merkle_root`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `cache`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cache` (
   `key` varchar(255) NOT NULL,
   `value` mediumtext NOT NULL,
@@ -42,10 +45,7 @@ CREATE TABLE `cache` (
   PRIMARY KEY (`key`),
   KEY `cache_expiration_index` (`expiration`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `cache_locks`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `cache_locks` (
   `key` varchar(255) NOT NULL,
   `owner` varchar(255) NOT NULL,
@@ -53,10 +53,52 @@ CREATE TABLE `cache_locks` (
   PRIMARY KEY (`key`),
   KEY `cache_locks_expiration_index` (`expiration`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `carton_aggregations`;
+CREATE TABLE `carton_aggregations` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `carton_serial` varchar(64) NOT NULL,
+  `po_id` bigint(20) unsigned NOT NULL,
+  `factory_id` varchar(32) NOT NULL,
+  `batch_id` varchar(32) NOT NULL,
+  `unit_count` int(10) unsigned NOT NULL,
+  `carton_merkle_root` char(64) NOT NULL,
+  `carton_signature` varchar(255) NOT NULL,
+  `status` enum('sealed','in_transit','customs_cleared','opened') NOT NULL DEFAULT 'sealed',
+  `sealed_by_device` varchar(128) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `carton_aggregations_carton_serial_unique` (`carton_serial`),
+  KEY `carton_aggregations_po_id_batch_id_index` (`po_id`,`batch_id`),
+  KEY `carton_aggregations_status_index` (`status`),
+  CONSTRAINT `carton_aggregations_po_id_foreign` FOREIGN KEY (`po_id`) REFERENCES `purchase_orders` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `carton_units`;
+CREATE TABLE `carton_units` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `carton_id` bigint(20) unsigned NOT NULL,
+  `serial_registry_id` bigint(20) unsigned NOT NULL,
+  `leaf_index` int(10) unsigned NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `carton_units_carton_id_leaf_index_unique` (`carton_id`,`leaf_index`),
+  UNIQUE KEY `carton_units_serial_registry_id_unique` (`serial_registry_id`),
+  CONSTRAINT `carton_units_carton_id_foreign` FOREIGN KEY (`carton_id`) REFERENCES `carton_aggregations` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `carton_units_serial_registry_id_foreign` FOREIGN KEY (`serial_registry_id`) REFERENCES `serial_registry` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `device_attestations`;
+CREATE TABLE `device_attestations` (
+  `device_token` varchar(128) NOT NULL,
+  `device_public_key_b64` varchar(88) NOT NULL,
+  `play_integrity_verdict` varchar(64) DEFAULT NULL,
+  `last_scan_seq` bigint(20) unsigned NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`device_token`),
+  KEY `device_attestations_last_scan_seq_index` (`last_scan_seq`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `failed_jobs`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `failed_jobs` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `uuid` varchar(255) NOT NULL,
@@ -68,10 +110,7 @@ CREATE TABLE `failed_jobs` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `failed_jobs_uuid_unique` (`uuid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `job_batches`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `job_batches` (
   `id` varchar(255) NOT NULL,
   `name` varchar(255) NOT NULL,
@@ -85,10 +124,7 @@ CREATE TABLE `job_batches` (
   `finished_at` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `jobs`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `jobs` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `queue` varchar(255) NOT NULL,
@@ -100,20 +136,14 @@ CREATE TABLE `jobs` (
   PRIMARY KEY (`id`),
   KEY `jobs_queue_index` (`queue`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `migrations`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `migrations` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `migration` varchar(255) NOT NULL,
   `batch` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `notifications`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `notifications` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `device_token` varchar(128) NOT NULL,
@@ -133,10 +163,7 @@ CREATE TABLE `notifications` (
   KEY `notifications_outer_serial_index` (`outer_serial`),
   KEY `notifications_severity_index` (`severity`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `purchase_orders`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `purchase_orders` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `po_number` varchar(64) NOT NULL,
@@ -147,6 +174,8 @@ CREATE TABLE `purchase_orders` (
   `factory_expiry_days` smallint(5) unsigned NOT NULL DEFAULT 45,
   `retail_expiry_days` smallint(5) unsigned NOT NULL DEFAULT 365,
   `merkle_root_hash` char(64) DEFAULT NULL,
+  `dpp_metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`dpp_metadata`)),
+  `dpp_digest` char(8) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -154,12 +183,10 @@ CREATE TABLE `purchase_orders` (
   KEY `purchase_orders_buyer_id_created_at_index` (`buyer_id`,`created_at`),
   KEY `purchase_orders_factory_id_created_at_index` (`factory_id`,`created_at`),
   KEY `purchase_orders_factory_id_index` (`factory_id`),
+  KEY `purchase_orders_dpp_digest_index` (`dpp_digest`),
   CONSTRAINT `purchase_orders_buyer_id_foreign` FOREIGN KEY (`buyer_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `recall_events`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `recall_events` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `po_id` bigint(20) unsigned DEFAULT NULL,
@@ -179,10 +206,7 @@ CREATE TABLE `recall_events` (
   CONSTRAINT `recall_events_po_id_foreign` FOREIGN KEY (`po_id`) REFERENCES `purchase_orders` (`id`) ON DELETE SET NULL,
   CONSTRAINT `recall_events_triggered_by_foreign` FOREIGN KEY (`triggered_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `scan_logs`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `scan_logs` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `sync_uuid` varchar(64) NOT NULL,
@@ -208,10 +232,7 @@ CREATE TABLE `scan_logs` (
   KEY `scan_logs_cloud_cross_check_verdict_index` (`cloud_cross_check_verdict`),
   KEY `scan_logs_scanned_at_index` (`scanned_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `serial_registry`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `serial_registry` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `po_id` bigint(20) unsigned NOT NULL,
@@ -243,10 +264,7 @@ CREATE TABLE `serial_registry` (
   KEY `serial_registry_rework_parent_serial_index` (`rework_parent_serial`),
   CONSTRAINT `serial_registry_po_id_foreign` FOREIGN KEY (`po_id`) REFERENCES `purchase_orders` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `sessions`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `sessions` (
   `id` varchar(255) NOT NULL,
   `user_id` bigint(20) unsigned DEFAULT NULL,
@@ -258,10 +276,25 @@ CREATE TABLE `sessions` (
   KEY `sessions_user_id_index` (`user_id`),
   KEY `sessions_last_activity_index` (`last_activity`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `signing_keys`;
+CREATE TABLE `signing_keys` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `key_version` char(4) NOT NULL,
+  `buyer_id` bigint(20) unsigned DEFAULT NULL,
+  `public_key_b64` varchar(88) NOT NULL,
+  `private_key_encrypted` text NOT NULL,
+  `status` enum('active','verify_only','revoked') NOT NULL DEFAULT 'verify_only',
+  `activated_at` timestamp NULL DEFAULT NULL,
+  `retired_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `signing_keys_key_version_unique` (`key_version`),
+  KEY `signing_keys_status_key_version_index` (`status`,`key_version`),
+  KEY `signing_keys_buyer_id_index` (`buyer_id`),
+  CONSTRAINT `signing_keys_buyer_id_foreign` FOREIGN KEY (`buyer_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `users`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `users` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
@@ -278,13 +311,6 @@ CREATE TABLE `users` (
   KEY `users_role_index` (`role`),
   KEY `users_factory_id_index` (`factory_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;

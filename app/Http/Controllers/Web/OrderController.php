@@ -31,6 +31,7 @@ class OrderController extends Controller
             'authorized_quota' => ['required', 'integer', 'min:1', 'max:1000000'],
             'factory_expiry_days' => ['required', 'integer', 'min:1', 'max:365'],
             'retail_expiry_days' => ['required', 'integer', 'min:1', 'max:3650'],
+            'dpp_metadata' => ['nullable', 'array', 'max:30'],
         ]);
 
         if ($request->user()->isAdmin() && empty($data['buyer_id'])) {

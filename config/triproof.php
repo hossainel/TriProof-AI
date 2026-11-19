@@ -7,6 +7,19 @@ return [
         'key_id' => hash('sha256', (string) env('UNIVERSAL_PUBLIC_VERIFICATION_KEY')),
     ],
 
+    'keys' => [
+        'legacy_version' => 'K00',
+        'rotation_months' => (int) env('KEY_ROTATION_MONTHS', 6),
+    ],
+
+    'anchors' => [
+        'provider' => env('ANCHOR_PROVIDER', 'local_ledger'),
+    ],
+
+    'alerts' => [
+        'webhook_url' => env('ALERT_WEBHOOK_URL'),
+    ],
+
     'jwt' => [
         'secret' => env('JWT_SECRET') ?: env('APP_KEY'),
         'ttl_minutes' => (int) env('JWT_TTL_MINUTES', 720),
@@ -17,6 +30,8 @@ return [
     'blacklist' => [
         'max_bytes' => (int) env('OFFLINE_BLACKLIST_MAX_BYTES', 50000),
         'max_cloned' => (int) env('OFFLINE_BLACKLIST_MAX_CLONED', 5000),
+        'bloom_target_entries' => (int) env('OFFLINE_BLOOM_TARGET_ENTRIES', 30000),
+        'bloom_max_bits' => (int) env('OFFLINE_BLOOM_MAX_BITS', 240000),
     ],
 
     'verification' => [

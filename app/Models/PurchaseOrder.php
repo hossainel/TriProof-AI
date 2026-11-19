@@ -22,6 +22,8 @@ class PurchaseOrder extends Model
         'factory_expiry_days',
         'retail_expiry_days',
         'merkle_root_hash',
+        'dpp_metadata',
+        'dpp_digest',
     ];
 
     protected function casts(): array
@@ -31,6 +33,7 @@ class PurchaseOrder extends Model
             'generated_count' => 'integer',
             'factory_expiry_days' => 'integer',
             'retail_expiry_days' => 'integer',
+            'dpp_metadata' => 'array',
         ];
     }
 

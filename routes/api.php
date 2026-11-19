@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\Api\AiController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BlacklistDeltaController;
+use App\Http\Controllers\Api\CartonController;
+use App\Http\Controllers\Api\DeviceAttestationController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OfflineBlacklistController;
@@ -17,10 +20,20 @@ Route::get('/health', HealthController::class)->middleware('throttle:triproof-ap
 Route::post('/auth/login', [AuthController::class, 'login'])
     ->middleware('throttle:triproof-login');
 
+Route::get('/blacklist/delta', BlacklistDeltaController::class)
+    ->middleware('throttle:triproof-api');
+Route::get('/notifications/{deviceToken}', [NotificationController::class, 'index'])
+    ->middleware('throttle:triproof-api');
+Route::post('/verify/online-crosscheck', [VerificationController::class, 'onlineCrosscheck'])
+    ->middleware(['api.optional', 'throttle:triproof-verify']);
+
 Route::middleware(['api.auth', 'throttle:triproof-api'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::get('/offline-blacklist', OfflineBlacklistController::class);
+    Route::post('/devices/attest', [DeviceAttestationController::class, 'store']);
+    Route::post('/cartons/aggregate', [CartonController::class, 'aggregate']);
+    Route::get('/cartons/{cartonSerial}/verify', [CartonController::class, 'verify']);
 
     Route::get('/orders', [PurchaseOrderController::class, 'index']);
     Route::post('/orders', [PurchaseOrderController::class, 'store']);
@@ -31,12 +44,10 @@ Route::middleware(['api.auth', 'throttle:triproof-api'])->group(function () {
     Route::post('/recall/trigger', [RecallController::class, 'trigger']);
     Route::post('/rework/reconcile', [ReworkController::class, 'reconcile']);
 
-    Route::get('/notifications/{deviceToken}', [NotificationController::class, 'index']);
     Route::post('/notifications/mark-read', [NotificationController::class, 'markRead']);
 });
 
 Route::middleware(['api.auth', 'throttle:triproof-verify'])->group(function () {
-    Route::post('/verify/online-crosscheck', [VerificationController::class, 'onlineCrosscheck']);
     Route::post('/verify/transfer-ticket', [VerificationController::class, 'transferTicket']);
 });
 

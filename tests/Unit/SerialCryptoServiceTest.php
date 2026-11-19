@@ -30,7 +30,7 @@ class SerialCryptoServiceTest extends TestCase
 
         $inner = $this->crypto->sign($outer);
 
-        $this->assertSame('DHK04-M01-B01-000042|20261118|20271118', $outer);
+        $this->assertSame('DHK04-M01-B01-000042|2026-11-18|2027-11-18', $outer);
         $this->assertTrue($this->crypto->verify($outer, $inner));
         $this->assertSame($this->crypto->unitHash($outer, $inner), hash('sha256', $outer.'|'.$inner));
     }
@@ -54,13 +54,22 @@ class SerialCryptoServiceTest extends TestCase
             'machine_id' => 'M01',
             'batch_id' => 'B01',
             'unit_number' => 7,
-            'prod_date' => '20261118',
-            'exp_date' => '20271118',
-        ], $this->crypto->parseOuterSerial('DHK04-M01-B01-000007|20261118|20271118'));
+            'prod_date' => '2026-11-18',
+            'exp_date' => '2027-11-18',
+        ], $this->crypto->parseOuterSerial('DHK04-M01-B01-000007|2026-11-18|2027-11-18'));
 
         $this->assertNull($this->crypto->parseOuterSerial('DHK04-M01-B01-7|20261118|20271118'));
         $this->assertNull($this->crypto->parseOuterSerial('lower-M01-B01-000007|20261118|20271118'));
         $this->assertFalse($this->crypto->isValidOuterSerial('DHK04-M01-B01-000007|20261118'));
+    }
+
+    public function test_legacy_compact_dates_are_still_parseable(): void
+    {
+        $parsed = $this->crypto->parseOuterSerial('DHK04-M01-B01-000007|20261118|20271118');
+
+        $this->assertSame('2026-11-18', $parsed['prod_date']);
+        $this->assertSame('2027-11-18', $parsed['exp_date']);
+        $this->assertNull($this->crypto->parseOuterSerial('DHK04-M01-B01-000007|20260230|20271118'));
     }
 
     public function test_generation_rejects_invalid_identifiers_and_unit_ranges(): void

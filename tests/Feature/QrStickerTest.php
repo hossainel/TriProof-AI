@@ -54,7 +54,7 @@ class QrStickerTest extends TestCase
 
         $this->assertCount(4, $read);
         foreach ($expected as $serial) {
-            $this->assertContains($serial->outer_serial, $read);
+            $this->assertContains(rtrim((string) config('app.url'), '/').'/v/'.$serial->outer_serial, $read);
             $this->assertContains($serial->inner_serial, $read);
         }
 

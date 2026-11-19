@@ -64,14 +64,16 @@ class BatchGenerationService
             ? CarbonImmutable::parse($input['prod_date'])->startOfDay()
             : CarbonImmutable::now()->startOfDay();
         $expDate = $prodDate->addDays($order->retail_expiry_days);
+        $keyVersion = $this->keys->activeVersion($order->buyer_id);
+        $dppDigest = $order->dpp_digest;
 
         try {
-            $this->crypto->formatOuterSerial($factoryId, $machineId, $batchId, 1, $prodDate, $expDate);
+            $this->crypto->formatOuterSerial($factoryId, $machineId, $batchId, 1, $prodDate, $expDate, $dppDigest ? $keyVersion : null, $dppDigest);
         } catch (Throwable $e) {
             throw new BusinessRuleException('invalid_batch_identifiers', $e->getMessage());
         }
 
-        return DB::transaction(function () use ($order, $actor, $input, $count, $factoryId, $machineId, $batchId, $prodDate, $expDate) {
+        return DB::transaction(function () use ($order, $actor, $input, $count, $factoryId, $machineId, $batchId, $prodDate, $expDate, $keyVersion, $dppDigest) {
             /** @var PurchaseOrder $locked */
             $locked = PurchaseOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
 
@@ -96,7 +98,7 @@ class BatchGenerationService
 
             for ($i = 0; $i < $count; $i++) {
                 $unitNumber = $start + $i;
-                $outer = $this->crypto->formatOuterSerial($factoryId, $machineId, $batchId, $unitNumber, $prodDate, $expDate);
+                $outer = $this->crypto->formatOuterSerial($factoryId, $machineId, $batchId, $unitNumber, $prodDate, $expDate, $dppDigest ? $keyVersion : null, $dppDigest);
                 $inner = $this->crypto->sign($outer);
                 $unitHash = $this->crypto->unitHash($outer, $inner);
 

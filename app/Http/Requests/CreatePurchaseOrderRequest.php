@@ -20,6 +20,7 @@ class CreatePurchaseOrderRequest extends FormRequest
             'authorized_quota' => ['required', 'integer', 'min:1', 'max:1000000'],
             'factory_expiry_days' => ['nullable', 'integer', 'min:1', 'max:365'],
             'retail_expiry_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
+            'dpp_metadata' => ['nullable', 'array', 'max:30'],
         ];
     }
 }

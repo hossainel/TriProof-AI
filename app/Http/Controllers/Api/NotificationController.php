@@ -33,7 +33,9 @@ class NotificationController extends Controller
             ->where('is_read', false)
             ->count();
 
-        return ApiResponse::success([
+        return response()->json([
+            'success' => true,
+            'server_time' => now()->toIso8601String(),
             'device_token' => $deviceToken,
             'unread_count' => $unread,
             'notifications' => collect($items->items())->map(fn (Notification $n) => NotificationService::toPayload($n))->all(),
@@ -42,6 +44,17 @@ class NotificationController extends Controller
                 'per_page' => $items->perPage(),
                 'total' => $items->total(),
                 'last_page' => $items->lastPage(),
+            ],
+            'data' => [
+                'device_token' => $deviceToken,
+                'unread_count' => $unread,
+                'notifications' => collect($items->items())->map(fn (Notification $n) => NotificationService::toPayload($n))->all(),
+                'pagination' => [
+                    'current_page' => $items->currentPage(),
+                    'per_page' => $items->perPage(),
+                    'total' => $items->total(),
+                    'last_page' => $items->lastPage(),
+                ],
             ],
         ]);
     }

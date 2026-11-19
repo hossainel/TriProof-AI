@@ -332,6 +332,23 @@
                         <p class="mt-1 text-[11px] leading-4 text-slate-600" data-merkle-algorithm>—</p>
                     </div>
                 </div>
+
+                @if (! empty($anchors) && $anchors->isNotEmpty())
+                    <div>
+                        <p class="text-[10px] font-bold tracking-[0.12em] text-slate-500 uppercase">External anchor receipts</p>
+                        <div class="mt-2 space-y-2">
+                            @foreach ($anchors as $anchor)
+                                <div class="rounded-xl border border-slate-200 bg-white p-3">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <span class="badge {{ $anchor->status === 'verified' ? 'badge-success' : 'badge-neutral' }}">{{ $anchor->provider }} · {{ $anchor->status }}</span>
+                                        <span class="text-[10px] text-slate-400">{{ $anchor->anchor_date?->format('d M Y') }}</span>
+                                    </div>
+                                    <code class="code-block mt-2 block break-all">{{ $anchor->tx_hash_or_receipt }}</code>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <div class="mt-4 flex justify-end border-t border-slate-100 pt-4">

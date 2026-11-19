@@ -5,11 +5,13 @@ use App\Exceptions\AiUnavailableException;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Middleware\AuthenticateApi;
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\OptionalApiAuth;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -29,9 +31,13 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withSchedule(function (Schedule $schedule): void {
+        $schedule->command('triproof:anchor-merkle')->dailyAt('01:30');
+    })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'api.auth' => AuthenticateApi::class,
+            'api.optional' => OptionalApiAuth::class,
             'role' => EnsureRole::class,
         ]);
 

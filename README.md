@@ -11,6 +11,12 @@ Chart.js, Leaflet, and a provider-agnostic AI layer with a deterministic fallbac
 The native Kotlin [TriProof AI Scanner](android/README.md) lives in `android/`. It verifies signed
 labels offline, stores scan history on the phone, and syncs it to this API when authenticated.
 
+**Enterprise V2 adds** versioned `K01+` signing keys with buyer isolation and a published key ring,
+signed EU Digital Product Passport digests inside V2 serials, signed master-carton aggregation with
+Merkle inclusion proofs, a 30,000-entry Bloom filter in the 50 KB offline package, local Merkle
+anchor receipts, monotonic `scan_seq` replay protection, device-signature verification, and public
+`/v/{payload}` smart-URL passports. Legacy v1 serials and all existing endpoints remain compatible.
+
 ## What it solves
 
 - Quota-locked serial issuance prevents ghost overproduction and label copying.
@@ -196,7 +202,9 @@ authentication, and the JWT API flow.
 
 The signing private key and `JWT_SECRET` must be backed up securely. Losing the signing key means
 new labels cannot be signed for the existing public key; leaking it compromises authenticity.
-Rotate with `php artisan triproof:keys --force` only when old labels can be invalidated.
+For V2, rotate non-disruptively with `php artisan triproof:keys:rotate --key-version=K02
+[--buyer=ID]`; the previous key stays `verify_only` so retail inventory remains verifiable.
+`php artisan triproof:keys --force` remains the destructive v1 reset for invalidating old labels.
 
 ## Database
 
