@@ -46,7 +46,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
-          extensions: sodium, pdo_mysql, mbstring, dom, fileinfo, curl, openssl, zlib
+          extensions: sodium, pdo_mysql, mbstring, dom, fileinfo, curl, openssl, zlib, gd
           coverage: none
 
       - name: Setup Node
