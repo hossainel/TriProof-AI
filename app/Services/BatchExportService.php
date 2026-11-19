@@ -104,12 +104,11 @@ class BatchExportService
      * Render paired outer/inner QR stickers. Serials are signed exactly as generated and the PNGs
      * are produced in-process with GD: no font, renderer or QR HTTP service is contacted.
      */
-    public function qrStickers(
+    public function qrStickerViewData(
         PurchaseOrder $order,
         ?int $limit = null,
         ?string $batchId = null,
-        bool $inline = true,
-    ): Response {
+    ): array {
         $query = $order->serials();
         if ($batchId) {
             $query->where('batch_id', $batchId);
@@ -131,27 +130,36 @@ class BatchExportService
         }
 
         $total = (clone $query)->count();
-        $serials = $selected->map(fn (SerialRegistry $serial) => [
-            'outer_serial' => $serial->outer_serial,
-            'inner_serial' => $serial->inner_serial,
-            'unit_hash' => $serial->unit_hash,
-            'factory_id' => $serial->factory_id,
-            'machine_id' => $serial->machine_id,
-            'batch_id' => $serial->batch_id,
-            'exp_date' => $serial->exp_date?->toDateString() ?? '—',
-            'outer_qr' => $this->qr($serial->outer_serial, EccLevel::M),
-            'inner_qr' => $this->qr($serial->inner_serial, EccLevel::Q),
-        ])->all();
 
-        $pdf = Pdf::loadView('exports.qr-labels-pdf', [
-            'order' => $order,
-            'serials' => $serials,
-            'printedPairs' => count($serials),
+        return [
+            'serials' => $selected->map(fn (SerialRegistry $serial) => [
+                'outer_serial' => $serial->outer_serial,
+                'inner_serial' => $serial->inner_serial,
+                'unit_hash' => $serial->unit_hash,
+                'factory_id' => $serial->factory_id,
+                'machine_id' => $serial->machine_id,
+                'batch_id' => $serial->batch_id,
+                'exp_date' => $serial->exp_date?->toDateString() ?? '—',
+                'outer_qr' => $this->qr($serial->outer_serial, EccLevel::M),
+                'inner_qr' => $this->qr($serial->inner_serial, EccLevel::Q),
+            ])->all(),
+            'printedPairs' => $selected->count(),
             'totalPairs' => $total,
-            'truncated' => $total > count($serials),
+            'truncated' => $total > $selected->count(),
             'merkle' => $order->merkle_root_hash ?: '—',
             'printedAt' => now(),
-        ])->setPaper('a4', 'portrait');
+        ];
+    }
+
+    public function qrStickers(
+        PurchaseOrder $order,
+        ?int $limit = null,
+        ?string $batchId = null,
+        bool $inline = true,
+    ): Response {
+        $data = $this->qrStickerViewData($order, $limit, $batchId);
+        $pdf = Pdf::loadView('exports.qr-labels-pdf', array_merge(['order' => $order], $data))
+            ->setPaper('a4', 'portrait');
 
         $filename = 'triproof-qr-stickers-'.$order->po_number.'.pdf';
 

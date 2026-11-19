@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\BatchExportService;
 use chillerlan\QRCode\QRCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\TriProofFixtures;
@@ -35,49 +36,29 @@ class QrStickerTest extends TestCase
         $this->assertStringContainsString('triproof-qr-stickers-', $response->headers->get('Content-Disposition') ?? '');
 
         $pdf = $response->getContent();
+        $this->assertStringStartsWith('%PDF-', $pdf);
 
-        // Verify what the camera actually sees: extract the four PNGs dompdf embedded from the
-        // finished PDF, then decode them with the local QR reader. No network service is involved.
-        $token = bin2hex(random_bytes(6));
-        $temp = sys_get_temp_dir().'/triproof-qr-'.$token.'.pdf';
-        $prefix = sys_get_temp_dir().'/triproof-qr-'.$token;
-        file_put_contents($temp, $pdf);
-        exec('pdfimages -png '.escapeshellarg($temp).' '.escapeshellarg($prefix).' 2>/dev/null', $output, $code);
-        $images = glob($prefix.'*.png');
+        // Decode the four locally generated PNGs and render the exact view data used by the PDF.
+        // No shell tools or network services are required, so this works on any CI runner.
+        $data = app(BatchExportService::class)->qrStickerViewData($order, 2);
         $read = [];
-        foreach ($images as $image) {
-            $read[] = (new QRCode)->readFromFile($image)->data;
-        }
-        foreach ([...$images, $temp] as $file) {
-            @unlink($file);
+        foreach ($data['serials'] as $sticker) {
+            foreach (['outer_qr', 'inner_qr'] as $key) {
+                $uri = $sticker[$key];
+                $this->assertStringStartsWith('data:image/png;base64,', $uri);
+                $png = base64_decode(substr($uri, strlen('data:image/png;base64,')), true);
+                $this->assertNotFalse($png);
+                $read[] = (new QRCode)->readFromBlob($png)->data;
+            }
         }
 
-        $this->assertSame(0, $code);
         $this->assertCount(4, $read);
         foreach ($expected as $serial) {
             $this->assertContains($serial->outer_serial, $read);
             $this->assertContains($serial->inner_serial, $read);
         }
 
-        $html = view('exports.qr-labels-pdf', [
-            'order' => $order,
-            'serials' => $expected->map(fn ($serial) => [
-                'outer_serial' => $serial->outer_serial,
-                'inner_serial' => $serial->inner_serial,
-                'unit_hash' => $serial->unit_hash,
-                'factory_id' => $serial->factory_id,
-                'machine_id' => $serial->machine_id,
-                'batch_id' => $serial->batch_id,
-                'exp_date' => $serial->exp_date->toDateString(),
-                'outer_qr' => 'data:image/png;base64,AAAA',
-                'inner_qr' => 'data:image/png;base64,BBBB',
-            ])->all(),
-            'printedPairs' => 2,
-            'totalPairs' => 5,
-            'truncated' => true,
-            'merkle' => $order->merkle_root_hash ?: '—',
-            'printedAt' => now(),
-        ])->render();
+        $html = view('exports.qr-labels-pdf', array_merge(['order' => $order], $data))->render();
 
         $printable = html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         foreach ([
