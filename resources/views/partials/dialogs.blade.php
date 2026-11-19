@@ -61,7 +61,12 @@
                         @endforeach
                     </select>
                     @if ($factories->isEmpty())
-                        <p class="hint mt-1 text-rose-600">{{ __('triproof.forms.create_order.no_factories') }}</p>
+                        <p class="hint mt-1 text-rose-600">
+                            {{ __('triproof.forms.create_order.no_factories') }}
+                            <a href="{{ route('admin.manage') }}#admin-factories" class="font-medium hover:underline">
+                                {{ __('triproof.forms.create_order.register_factory') }}
+                            </a>
+                        </p>
                     @endif
                 </div>
 

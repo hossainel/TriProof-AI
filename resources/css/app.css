@@ -244,9 +244,6 @@
 
     .tp-dialog {
         @apply fixed inset-0 z-[70] m-auto max-h-[92vh] w-[min(94vw,620px)] overflow-visible border-0 bg-transparent p-0 text-slate-700;
-        display: flex;
-        align-items: center;
-        justify-content: center;
     }
 
     dialog.tp-dialog:not([open]) {
@@ -256,6 +253,8 @@
     dialog.tp-dialog[open] {
         display: flex;
         flex-direction: column;
+        align-items: center;
+        justify-content: center;
         position: fixed;
         inset: 0;
         margin: auto;

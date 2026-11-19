@@ -287,6 +287,7 @@ return [
             'submit' => 'Create quota-locked order',
             'no_factories' => 'No registered factory accounts',
             'no_factories_hint' => 'Create a factory QA user with a factory ID before issuing orders.',
+            'register_factory' => 'Register a factory first →',
             'no_buyers' => 'No global buyer accounts exist yet.',
         ],
         'generate' => [

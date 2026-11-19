@@ -137,6 +137,101 @@ class AdminDirectoryManagementTest extends TestCase
     }
 
     /** @test */
+    public function admin_can_create_a_factory_inactive(): void
+    {
+        $this->signInAsAdmin();
+
+        $response = $this->post(route('admin.factories.store'), [
+            'code' => 'BD09',
+            'name_en' => 'Inactive Plant',
+            'name_bn' => 'নিষ্ক্রিয় প্ল্যান্ট',
+            'location' => 'Chattogram',
+            'contact_email' => 'inactive@example.test',
+            'is_active' => '0',
+        ]);
+
+        $response->assertRedirect(route('admin.manage'));
+        $this->assertDatabaseHas('factories', [
+            'code' => 'BD09',
+            'name_en' => 'Inactive Plant',
+            'is_active' => false,
+        ]);
+    }
+
+    /** @test */
+    public function admin_can_create_a_factory_without_is_active_defaults_to_false(): void
+    {
+        $this->signInAsAdmin();
+
+        $response = $this->post(route('admin.factories.store'), [
+            'code' => 'BD10',
+            'name_en' => 'No Checkbox Plant',
+            'name_bn' => 'চেকবক্সহীন প্ল্যান্ট',
+            'location' => 'Sylhet',
+            'contact_email' => 'nocheck@example.test',
+        ]);
+
+        $response->assertRedirect(route('admin.manage'));
+        $this->assertDatabaseHas('factories', [
+            'code' => 'BD10',
+            'name_en' => 'No Checkbox Plant',
+            'is_active' => false,
+        ]);
+    }
+
+    /** @test */
+    public function admin_can_update_factory_is_active(): void
+    {
+        $factory = Factory::query()->create([
+            'code' => 'BD11',
+            'name_en' => 'Updatable Plant',
+            'is_active' => true,
+        ]);
+        $this->signInAsAdmin();
+
+        $response = $this->put(route('admin.factories.update', $factory), [
+            'name_en' => 'Updatable Plant Updated',
+            'name_bn' => 'আপডেটযোগ্য প্ল্যান্ট আপডেট করা হয়েছে',
+            'location' => 'Rajshahi',
+            'contact_email' => 'update@example.test',
+            'is_active' => '0',
+        ]);
+
+        $response->assertRedirect(route('admin.manage'));
+        $this->assertDatabaseHas('factories', [
+            'id' => $factory->id,
+            'code' => 'BD11',
+            'is_active' => false,
+        ]);
+    }
+
+    /** @test */
+    public function admin_can_update_factory_remains_active(): void
+    {
+        $factory = Factory::query()->create([
+            'code' => 'BD12',
+            'name_en' => 'Remains Active Plant',
+            'is_active' => false,
+        ]);
+        $this->signInAsAdmin();
+
+        $response = $this->put(route('admin.factories.update', $factory), [
+            'name_en' => 'Remains Active Plant Updated',
+            'name_bn' => 'সক্রিয় থাকা প্ল্যান্ট আপডেট করা হয়েছে',
+            'location' => 'Khulna',
+            'contact_email' => 'remain@example.test',
+            'is_active' => '1',
+        ]);
+
+        $response->assertRedirect(route('admin.manage'));
+        $this->assertDatabaseHas('factories', [
+            'id' => $factory->id,
+            'code' => 'BD12',
+            'is_active' => true,
+        ]);
+    }
+
+    /** @test */
     public function admin_cannot_delete_a_factory_that_is_referenced(): void
     {
         $factory = Factory::query()->create([

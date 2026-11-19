@@ -100,6 +100,9 @@ class AdminDirectoryController extends Controller
 
     public function storeFactory(StoreFactoryRequest $request): RedirectResponse
     {
+        $request->merge([
+            'is_active' => $request->boolean('is_active'),
+        ]);
         $data = $request->validated();
 
         Factory::query()->create([
@@ -116,6 +119,9 @@ class AdminDirectoryController extends Controller
 
     public function updateFactory(UpdateFactoryRequest $request, Factory $factory): RedirectResponse
     {
+        $request->merge([
+            'is_active' => $request->boolean('is_active'),
+        ]);
         $data = $request->validated();
 
         $factory->update([

@@ -55,7 +55,8 @@
             </div>
 
             <div class="flex items-center gap-2">
-                <input id="add-factory-is-active" name="is_active" type="checkbox" class="checkbox" {{ $isCurrentDialog ? (old('is_active', true) ? 'checked' : '') : 'checked' }}>
+                <input type="hidden" name="is_active" value="0">
+                <input id="add-factory-is-active" name="is_active" type="checkbox" value="1" class="checkbox" @checked(old('dialog_id') === 'add-factory-dialog' ? old('is_active') == '1' : true)>
                 <label for="add-factory-is-active" class="label">{{ __('triproof.admin.factories.active') }}</label>
             </div>
 
@@ -126,7 +127,8 @@
                 </div>
 
                 <div class="flex items-center gap-2">
-                    <input id="edit-factory-is-active-{{ $factory->id }}" name="is_active" type="checkbox" class="checkbox" {{ $isCurrentDialog ? (old('is_active', $factory->is_active) ? 'checked' : '') : ($factory->is_active ? 'checked' : '') }}>
+                    <input type="hidden" name="is_active" value="0">
+                    <input id="edit-factory-is-active-{{ $factory->id }}" name="is_active" type="checkbox" value="1" class="checkbox" @checked(old('dialog_id') === 'edit-factory-' . $factory->id ? old('is_active') == '1' : (bool) $factory->is_active)>
                     <label for="edit-factory-is-active-{{ $factory->id }}" class="label">{{ __('triproof.admin.factories.active') }}</label>
                 </div>
 

@@ -81,6 +81,34 @@ class DashboardController extends Controller
             ->orderBy('code')
             ->get();
 
+        if ($factories->count() === 0) {
+            $backfilledCodes = User::query()
+                ->whereNotNull('factory_id')
+                ->distinct()
+                ->pluck('factory_id')
+                ->merge(PurchaseOrder::query()->distinct()->pluck('factory_id'))
+                ->filter()
+                ->map(fn ($code) => strtoupper(trim((string) $code)))
+                ->unique()
+                ->values();
+
+            if ($backfilledCodes->isEmpty()) {
+                $backfilledCodes = collect(['DHK04']);
+            }
+
+            foreach ($backfilledCodes as $code) {
+                Factory::firstOrCreate(['code' => $code], [
+                    'name_en' => 'Factory '.$code,
+                    'name_bn' => null,
+                    'location' => null,
+                    'contact_email' => null,
+                    'is_active' => true,
+                ]);
+            }
+
+            $factories = Factory::query()->active()->orderBy('code')->get();
+        }
+
         $buyers = User::query()
             ->where('role', UserRole::GlobalBuyer)
             ->orderBy('name')

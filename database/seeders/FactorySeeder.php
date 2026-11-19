@@ -11,12 +11,10 @@ class FactorySeeder extends Seeder
     public function run(): void
     {
         $defaults = [
-            ['code' => 'DHK04', 'name_en' => 'Dhaka Apparel Unit 04', 'name_bn' => 'ঢাকা অ্যাপারেল ইউনিট ০৪', 'location' => 'Dhaka'],
-            ['code' => 'BD01', 'name_en' => 'Bangladesh Unit 01', 'name_bn' => 'বাংলাদেশ ইউনিট ০১', 'location' => 'Dhaka'],
-            ['code' => 'BD02', 'name_en' => 'Chattogram Unit 02', 'name_bn' => 'চট্টগ্রাম ইউনিট ০২', 'location' => 'Chattogram'],
-            ['code' => 'BD03', 'name_en' => 'Gazipur Unit 03', 'name_bn' => 'গাজীপুর ইউনিট ০৩', 'location' => 'Gazipur'],
-            ['code' => 'BD04', 'name_en' => 'Narayanganj Unit 04', 'name_bn' => 'নারায়ণগঞ্জ ইউনিট ০৪', 'location' => 'Narayanganj'],
-            ['code' => 'BD05', 'name_en' => 'Khulna Unit 05', 'name_bn' => 'খুলনা ইউনিট ০৫', 'location' => 'Khulna'],
+            ['code' => 'DHK04', 'name_en' => 'Dhaka Apparel Unit 04', 'name_bn' => 'ঢাকা পোশাক ইউনিট ০৪', 'location' => 'Dhaka'],
+            ['code' => 'BD01', 'name_en' => 'Gazipur Knitwear Line 1', 'name_bn' => 'গাজীপুর নিটওয়্যার লাইন ১', 'location' => 'Gazipur'],
+            ['code' => 'BD02', 'name_en' => 'Chattogram Export Zone 2', 'name_bn' => 'চট্টগ্রাম রপ্তানি জোন ২', 'location' => 'Chattogram'],
+            ['code' => 'BD03', 'name_en' => 'Narayanganj Denim Plant 3', 'name_bn' => 'নারায়ণগঞ্জ ডেনিম প্ল্যান্ট ৩', 'location' => 'Narayanganj'],
         ];
 
         foreach ($defaults as $factory) {
