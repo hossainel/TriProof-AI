@@ -13,6 +13,7 @@ const ready = (callback) => {
 
 ready(() => {
     initSidebar();
+    initTabs();
     initDialogs();
     initLocaleSwitch();
     initChart();
@@ -49,6 +50,64 @@ function initSidebar() {
     overlay.addEventListener('click', close);
     window.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') close();
+    });
+}
+
+function initTabs() {
+    const tablist = document.querySelector('ul[tabs]') || document.querySelector('ul[role="tablist"]');
+    if (!tablist) return;
+
+    const tabs = Array.from(tablist.querySelectorAll('a[role="tab"]'));
+    const hashMap = new Map();
+    const dataActiveTab = tablist.dataset.activeTab || '';
+
+    tabs.forEach((tab) => {
+        const href = tab.getAttribute('href') || '';
+        const hash = href.replace(/^#/, '');
+        if (hash) hashMap.set(hash, tab);
+    });
+
+    const activeFromHash = window.location.hash.replace(/^#/, '');
+    const activeFromData = dataActiveTab;
+    const targetHash = activeFromHash || activeFromData || (tabs[0]?.getAttribute('href') || '').replace(/^#/, '');
+
+    function activate(hash) {
+        tabs.forEach((t) => {
+            const h = (t.getAttribute('href') || '').replace(/^#/, '');
+            const isActive = h === hash;
+            t.classList.toggle('tab-active', isActive);
+            t.setAttribute('aria-selected', String(isActive));
+        });
+
+        document.querySelectorAll('.tab-panel').forEach((panel) => {
+            const isActive = panel.id === hash;
+            panel.classList.toggle('hidden', !isActive);
+        });
+
+        // Sync sidebar active state
+        document.querySelectorAll('[data-sidebar-hash]').forEach((link) => {
+            link.classList.toggle('nav-link-active', link.dataset.sidebarHash === hash);
+        });
+
+        // Update URL hash without scrolling
+        if (window.location.hash.replace(/^#/, '') !== hash) {
+            window.history.replaceState(null, '', '#' + hash);
+        }
+    }
+
+    activate(targetHash);
+
+    tablist.addEventListener('click', (event) => {
+        const link = event.target.closest('a[role="tab"]');
+        if (!link) return;
+        event.preventDefault();
+        const hash = (link.getAttribute('href') || '').replace(/^#/, '');
+        if (hash) activate(hash);
+    });
+
+    window.addEventListener('hashchange', () => {
+        const hash = window.location.hash.replace(/^#/, '');
+        if (hash && hashMap.has(hash)) activate(hash);
     });
 }
 

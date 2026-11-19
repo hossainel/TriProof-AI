@@ -3,8 +3,45 @@
 @section('page-title', __('triproof.admin.title'))
 
 @section('content')
+
+    {{-- Status / validation banner --}}
+    @if (session('status') || $errors->any())
+        <div class="mb-6 rounded-2xl border p-4 shadow-sm
+            @if (session('status'))
+                border-emerald-200 bg-emerald-50 text-emerald-800
+            @else
+                border-rose-200 bg-rose-50 text-rose-800
+            @endif">
+            @if (session('status'))
+                <div class="flex items-start gap-3">
+                    <span class="shrink-0 rounded-full bg-emerald-200 text-emerald-700 flex h-6 w-6 items-center justify-center">
+                        <x-icon name="check-circle" class="h-3 w-3" />
+                    </span>
+                    <div>
+                        <p class="font-semibold">{{ session('status') }}</p>
+                    </div>
+                </div>
+            @endif
+            @if ($errors->any())
+                <div class="mt-3 flex items-start gap-3">
+                    <span class="shrink-0 rounded-full bg-rose-200 text-rose-700 flex h-6 w-6 items-center justify-center">
+                        <x-icon name="alert" class="h-3 w-3" />
+                    </span>
+                    <div>
+                        <p class="font-semibold">{{ __('triproof.common.validation_errors') }}</p>
+                        <ul class="mt-1 list-disc list-inside text-xs sm:text-sm space-y-1">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
+            @endif
+        </div>
+    @endif
+
     <section class="relative mb-6 overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm sm:p-8 lg:p-9">
-        <div class="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between gap-6">
+        <div class="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div class="min-w-0">
                 <p class="section-kicker">{{ __('triproof.admin.subtitle') }}</p>
                 <h2 class="mt-2 text-2xl font-semibold tracking-tight text-ink-950 md:text-3xl">
@@ -19,7 +56,7 @@
         </div>
     </section>
 
-    <ul class="tabs space-y-1" role="tablist">
+    <ul class="tabs" role="tablist" data-active-tab="{{ $activeTab ?? 'admin-buyers' }}">
         <li>
             <a href="#admin-buyers" class="tab tab-active" role="tab" aria-selected="true">
                 {{ __('triproof.admin.buyers.title') }}
@@ -43,8 +80,8 @@
     </ul>
 
     {{-- Global Buyers --}}
-    <section id="admin-buyers" class="tab-panel hidden mt-6">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between gap-4">
+    <section id="admin-buyers" class="tab-panel mt-6">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
                 <p class="section-kicker">{{ __('triproof.admin.buyers.subtitle') }}</p>
                 <h2 class="section-title">{{ __('triproof.admin.buyers.title') }}</h2>
@@ -79,14 +116,14 @@
                                 <td class="text-center">
                                     <span class="badge badge-neutral">{{ strtoupper($buyer->language_pref ?? 'en') }}</span>
                                 </td>
-                                <td class="text-center font-mono text-sm">{{ $buyer->purchase_orders_count }}</td>
+                                <td class="text-center font-mono text-sm {{ $buyer->purchase_orders_count > 0 ? 'text-rose-600 font-semibold' : 'text-slate-500' }}">{{ $buyer->purchase_orders_count }}</td>
                                 <td class="text-right pr-4">
                                     <button type="button" class="btn btn-ghost btn-xs" data-open-dialog="edit-buyer-{{ $buyer->id }}">
                                         {{ __('triproof.admin.buyers.edit') }}
                                     </button>
                                     <form method="POST" action="{{ route('admin.buyers.destroy', $buyer) }}" class="inline ml-2" data-confirm="{{ __('triproof.admin.buyers.confirm_delete') }}">
                                         @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-danger btn-xs">
+                                        <button type="submit" class="btn btn-danger btn-xs {{ $buyer->purchase_orders_count > 0 ? 'opacity-50 cursor-not-allowed' : '' }}" title="{{ $buyer->purchase_orders_count > 0 ? __('triproof.admin.buyers.cannot_delete') : '' }}" {{ $buyer->purchase_orders_count > 0 ? 'disabled' : '' }}>
                                             {{ __('triproof.admin.buyers.delete') }}
                                         </button>
                                     </form>
@@ -103,7 +140,7 @@
 
     {{-- Factories --}}
     <section id="admin-factories" class="tab-panel hidden mt-6">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
                 <p class="section-kicker">{{ __('triproof.admin.factories.subtitle') }}</p>
                 <h2 class="section-title">{{ __('triproof.admin.factories.title') }}</h2>
@@ -145,9 +182,12 @@
                                     <button type="button" class="btn btn-ghost btn-xs" data-open-dialog="edit-factory-{{ $factory->id }}">
                                         {{ __('triproof.admin.factories.edit') }}
                                     </button>
+                                    @php
+                                        $factoryBlocked = $factory->purchase_orders_count > 0 || $factory->serials_count > 0 || $factory->users_count > 0;
+                                    @endphp
                                     <form method="POST" action="{{ route('admin.factories.destroy', $factory) }}" class="inline ml-2" data-confirm="{{ __('triproof.admin.factories.confirm_delete') }}">
                                         @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-danger btn-xs">
+                                        <button type="submit" class="btn btn-danger btn-xs {{ $factoryBlocked ? 'opacity-50 cursor-not-allowed' : '' }}" title="{{ $factoryBlocked ? __('triproof.admin.factories.cannot_delete') : '' }}" {{ $factoryBlocked ? 'disabled' : '' }}>
                                             {{ __('triproof.admin.factories.delete') }}
                                         </button>
                                     </form>
@@ -164,7 +204,7 @@
 
     {{-- Factory QA Operators --}}
     <section id="admin-operators" class="tab-panel hidden mt-6">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
                 <p class="section-kicker">{{ __('triproof.admin.operators.subtitle') }}</p>
                 <h2 class="section-title">{{ __('triproof.admin.operators.title') }}</h2>
@@ -303,6 +343,14 @@
         </div>
     </section>
 @endsection
+
+@if (old('dialog_id'))
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('{{ old('dialog_id') }}')?.showModal();
+        });
+    </script>
+@endif
 
 @push('scripts')
     <script>

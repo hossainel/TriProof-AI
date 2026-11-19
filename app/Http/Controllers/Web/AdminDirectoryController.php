@@ -15,27 +15,36 @@ use App\Models\Factory;
 use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AdminDirectoryController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        session(['active_tab' => $request->input('tab', 'admin-buyers')]);
+
         return view('admin.manage', [
             'buyers' => User::query()
                 ->where('role', UserRole::GlobalBuyer)
                 ->orderBy('name')
                 ->withCount('purchaseOrders')
                 ->get(),
-            'factories' => Factory::query()->orderBy('code')->get(),
+            'factories' => Factory::query()->withCount(['purchaseOrders', 'serials', 'users'])->orderBy('code')->get(),
             'operators' => User::query()
                 ->where('role', UserRole::FactoryQa)
                 ->orderBy('name')
                 ->get(),
             'settings' => array_merge(SystemSetting::DEFAULTS, SystemSetting::allAsArray()),
+            'activeTab' => session('active_tab'),
         ]);
+    }
+
+    private function adminRedirect(string $message): RedirectResponse
+    {
+        return redirect()->route('admin.manage', ['tab' => session('active_tab')])
+            ->with('success', $message);
     }
 
     public function storeBuyer(StoreBuyerRequest $request): RedirectResponse
@@ -51,8 +60,7 @@ class AdminDirectoryController extends Controller
             'factory_id' => null,
         ]);
 
-        return redirect()->route('admin.manage')
-            ->with('success', __('triproof.admin.flash.buyer_created'));
+        return $this->adminRedirect(__('triproof.admin.flash.buyer_created'));
     }
 
     public function updateBuyer(UpdateBuyerRequest $request, User $user): RedirectResponse
@@ -72,8 +80,7 @@ class AdminDirectoryController extends Controller
 
         $user->save();
 
-        return redirect()->route('admin.manage')
-            ->with('success', __('triproof.admin.flash.buyer_updated'));
+        return $this->adminRedirect(__('triproof.admin.flash.buyer_updated'));
     }
 
     public function destroyBuyer(User $user): RedirectResponse
@@ -81,15 +88,14 @@ class AdminDirectoryController extends Controller
         $this->ensureRole($user, UserRole::GlobalBuyer);
 
         if ($user->purchaseOrders()->exists()) {
-            throw ValidationException::withMessages([
-                'buyer' => __('triproof.admin.errors.buyer_has_orders'),
-            ]);
+            return redirect()->route('admin.manage', ['tab' => session('active_tab')])
+                ->withInput(['dialog_id' => 'edit-buyer-'.$user->id])
+                ->withErrors(['buyer' => __('triproof.admin.errors.buyer_has_orders')]);
         }
 
         $user->delete();
 
-        return redirect()->route('admin.manage')
-            ->with('success', __('triproof.admin.flash.buyer_deleted'));
+        return $this->adminRedirect(__('triproof.admin.flash.buyer_deleted'));
     }
 
     public function storeFactory(StoreFactoryRequest $request): RedirectResponse
@@ -105,8 +111,7 @@ class AdminDirectoryController extends Controller
             'is_active' => $request->boolean('is_active'),
         ]);
 
-        return redirect()->route('admin.manage')
-            ->with('success', __('triproof.admin.flash.factory_created'));
+        return $this->adminRedirect(__('triproof.admin.flash.factory_created'));
     }
 
     public function updateFactory(UpdateFactoryRequest $request, Factory $factory): RedirectResponse
@@ -121,22 +126,20 @@ class AdminDirectoryController extends Controller
             'is_active' => $request->boolean('is_active'),
         ]);
 
-        return redirect()->route('admin.manage')
-            ->with('success', __('triproof.admin.flash.factory_updated'));
+        return $this->adminRedirect(__('triproof.admin.flash.factory_updated'));
     }
 
     public function destroyFactory(Factory $factory): RedirectResponse
     {
         if ($factory->purchaseOrders()->exists() || $factory->serials()->exists() || $factory->users()->exists()) {
-            throw ValidationException::withMessages([
-                'factory' => __('triproof.admin.errors.factory_has_references'),
-            ]);
+            return redirect()->route('admin.manage', ['tab' => session('active_tab')])
+                ->withInput(['dialog_id' => 'edit-factory-'.$factory->id])
+                ->withErrors(['factory' => __('triproof.admin.errors.factory_has_references')]);
         }
 
         $factory->delete();
 
-        return redirect()->route('admin.manage')
-            ->with('success', __('triproof.admin.flash.factory_deleted'));
+        return $this->adminRedirect(__('triproof.admin.flash.factory_deleted'));
     }
 
     public function storeOperator(StoreOperatorRequest $request): RedirectResponse
@@ -152,8 +155,7 @@ class AdminDirectoryController extends Controller
             'factory_id' => strtoupper($data['factory_id']),
         ]);
 
-        return redirect()->route('admin.manage')
-            ->with('success', __('triproof.admin.flash.operator_created'));
+        return $this->adminRedirect(__('triproof.admin.flash.operator_created'));
     }
 
     public function updateOperator(UpdateOperatorRequest $request, User $user): RedirectResponse
@@ -174,8 +176,7 @@ class AdminDirectoryController extends Controller
 
         $user->save();
 
-        return redirect()->route('admin.manage')
-            ->with('success', __('triproof.admin.flash.operator_updated'));
+        return $this->adminRedirect(__('triproof.admin.flash.operator_updated'));
     }
 
     public function destroyOperator(User $user): RedirectResponse
@@ -184,8 +185,7 @@ class AdminDirectoryController extends Controller
 
         $user->delete();
 
-        return redirect()->route('admin.manage')
-            ->with('success', __('triproof.admin.flash.operator_deleted'));
+        return $this->adminRedirect(__('triproof.admin.flash.operator_deleted'));
     }
 
     public function updateSettings(UpdateSystemSettingsRequest $request): RedirectResponse
@@ -201,8 +201,7 @@ class AdminDirectoryController extends Controller
             'compliance_notice_bn' => $data['compliance_notice_bn'] ?? null,
         ]);
 
-        return redirect()->route('admin.manage')
-            ->with('success', __('triproof.admin.flash.settings_updated'));
+        return $this->adminRedirect(__('triproof.admin.flash.settings_updated'));
     }
 
     private function ensureRole(User $user, UserRole $role): void

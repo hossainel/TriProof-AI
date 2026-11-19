@@ -139,6 +139,13 @@
             <path d="M16 5.5a3 3 0 0 1 0 5.8M17.5 14a5.5 5.5 0 0 1 3 5" />
             @break
 
+        @case('sliders')
+            <line x1="3" y1="3" x2="21" y2="3" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+            <line x1="3" y1="15" x2="21" y2="15" />
+            <line x1="3" y1="21" x2="21" y2="21" />
+            @break
+
         @case('factory')
             <path d="M3 21V9l6 3V9l6 3V4h3l1 17H3Z" />
             <path d="M7 17h2M13 17h2" />

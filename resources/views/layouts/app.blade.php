@@ -14,7 +14,13 @@
         array_unshift($operations, ['label' => __('triproof.nav.orders'), 'url' => route('dashboard').'#orders', 'icon' => 'orders']);
     }
     if ($user->isAdmin()) {
-        $operations[] = ['label' => __('triproof.admin.manage_button'), 'url' => route('admin.manage'), 'icon' => 'users'];
+        $adminActive = request()->routeIs('admin.manage');
+        $adminLinks = [
+            ['label' => __('triproof.admin.buyers.title'), 'url' => route('admin.manage').'#admin-buyers', 'icon' => 'users', 'hash' => 'admin-buyers'],
+            ['label' => __('triproof.admin.factories.title'), 'url' => route('admin.manage').'#admin-factories', 'icon' => 'factory', 'hash' => 'admin-factories'],
+            ['label' => __('triproof.admin.operators.title'), 'url' => route('admin.manage').'#admin-operators', 'icon' => 'shield', 'hash' => 'admin-operators'],
+            ['label' => __('triproof.admin.settings.title'), 'url' => route('admin.manage').'#admin-settings', 'icon' => 'sliders', 'hash' => 'admin-settings'],
+        ];
     }
     if (! $user->isBuyer()) {
         $operations[] = ['label' => __('triproof.nav.rework'), 'url' => route('dashboard').'#rework', 'icon' => 'rework'];
@@ -67,20 +73,30 @@
         <nav class="flex-1 overflow-y-auto px-3 pb-6" aria-label="{{ __('triproof.nav.main') }}">
             <p class="nav-group-title">{{ __('triproof.nav.account') }}</p>
             @foreach ($workspace as $item)
-                <a href="{{ $item['url'] }}" class="nav-link {{ $item['active'] ? 'nav-link-active' : '' }}">
+                <a href="{{ $item['url'] }}" class="nav-link {{ ($item['active'] ?? false) ? 'nav-link-active' : '' }}">
                     <x-icon :name="$item['icon']" class="h-[18px] w-[18px]" />
                     <span>{{ $item['label'] }}</span>
-                    @if ($item['active'])<span class="nav-dot ml-auto"></span>@endif
+                    @if ($item['active'] ?? false)<span class="nav-dot ml-auto"></span>@endif
                 </a>
             @endforeach
 
             <p class="nav-group-title">{{ __('triproof.app.name') }}</p>
             @foreach ($operations as $item)
-                <a href="{{ $item['url'] }}" class="nav-link">
+                <a href="{{ $item['url'] }}" class="nav-link {{ ($item['active'] ?? false) ? 'nav-link-active' : '' }}">
                     <x-icon :name="$item['icon']" class="h-[18px] w-[18px]" />
                     <span>{{ $item['label'] }}</span>
                 </a>
             @endforeach
+
+            @if ($user->isAdmin() && isset($adminLinks))
+                <p class="nav-group-title">{{ __('triproof.admin.nav_group') }}</p>
+                @foreach ($adminLinks as $item)
+                    <a href="{{ $item['url'] }}" class="nav-link {{ $adminActive ? 'nav-link-active' : '' }}" data-sidebar-hash="{{ $item['hash'] }}">
+                        <x-icon :name="$item['icon']" class="h-[18px] w-[18px]" />
+                        <span>{{ $item['label'] }}</span>
+                    </a>
+                @endforeach
+            @endif
 
             <p class="nav-group-title">{{ __('triproof.nav.api') }}</p>
             @foreach ($trust as $item)

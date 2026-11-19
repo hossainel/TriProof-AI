@@ -98,6 +98,7 @@ return [
         'no' => 'No',
         'download_csv' => 'Download CSV',
         'download_pdf' => 'Download PDF',
+        'validation_errors' => 'Please fix the validation errors below.',
     ],
 
     'dashboard' => [
@@ -472,6 +473,7 @@ return [
 
     'admin' => [
         'manage_button' => 'Manage Buyers & Factories',
+        'nav_group' => 'Administration',
         'title' => 'Directory & platform settings',
         'subtitle' => 'Create accounts, register factories and keep platform-wide defaults current.',
         'back' => 'Back to dashboard',
@@ -492,7 +494,7 @@ return [
             'password_keep' => 'Leave blank to keep the current password.',
             'language' => 'Language',
             'orders' => 'Orders',
-            'cannot_delete' => 'This buyer owns purchase orders and cannot be removed.',
+            'cannot_delete' => 'Has linked orders — deactivate instead',
         ],
         'factories' => [
             'title' => 'Factories',
@@ -513,7 +515,7 @@ return [
             'status' => 'Status',
             'active' => 'Active',
             'inactive' => 'Inactive',
-            'cannot_delete' => 'This factory is referenced by existing orders, serials or operators. Deactivate it instead.',
+            'cannot_delete' => 'Has linked orders, serials or users — deactivate instead',
         ],
         'operators' => [
             'title' => 'Factory QA Users',
