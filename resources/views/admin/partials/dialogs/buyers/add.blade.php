@@ -12,15 +12,29 @@
 
         <form method="POST" action="{{ route('admin.buyers.store') }}" class="space-y-4 p-6">
             @csrf
+            <input type="hidden" name="dialog_id" value="add-buyer-dialog">
+
+            @php($isCurrentDialog = old('dialog_id') === 'add-buyer-dialog')
+
+            @if ($isCurrentDialog && $errors->any())
+                <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                    {{ __('triproof.common.validation_errors') }}
+                    <ul class="mt-1 list-disc list-inside space-y-1">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
 
             <div>
                 <label for="add-buyer-name" class="label">{{ __('triproof.admin.buyers.name') }}</label>
-                <input id="add-buyer-name" name="name" type="text" class="input" value="{{ old('name') }}" required>
+                <input id="add-buyer-name" name="name" type="text" class="input" value="{{ $isCurrentDialog ? old('name') : '' }}" required>
             </div>
 
             <div>
                 <label for="add-buyer-email" class="label">{{ __('triproof.admin.buyers.email') }}</label>
-                <input id="add-buyer-email" name="email" type="email" class="input" value="{{ old('email') }}" required>
+                <input id="add-buyer-email" name="email" type="email" class="input" value="{{ $isCurrentDialog ? old('email') : '' }}" required>
             </div>
 
             <div>
@@ -32,8 +46,8 @@
             <div>
                 <label for="add-buyer-language" class="label">{{ __('triproof.admin.buyers.language') }}</label>
                 <select id="add-buyer-language" name="language_pref" class="select">
-                    <option value="en" {{ old('language_pref', 'en') === 'en' ? 'selected' : '' }}>English</option>
-                    <option value="bn" {{ old('language_pref') === 'bn' ? 'selected' : '' }}>বাংলা</option>
+                    <option value="en" {{ $isCurrentDialog ? (old('language_pref', 'en') === 'en' ? 'selected' : '') : ('en' === 'en' ? 'selected' : '') }}>English</option>
+                    <option value="bn" {{ $isCurrentDialog ? (old('language_pref') === 'bn' ? 'selected' : '') : ('' === 'bn' ? 'selected' : '') }}>বাংলা</option>
                 </select>
             </div>
 
@@ -62,15 +76,29 @@
                 @csrf @method('PUT')
 
                 <input type="hidden" name="id" value="{{ $buyer->id }}">
+                <input type="hidden" name="dialog_id" value="edit-buyer-{{ $buyer->id }}">
+
+                @php($isCurrentDialog = old('dialog_id') === 'edit-buyer-' . $buyer->id)
+
+                @if ($isCurrentDialog && $errors->any())
+                    <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                        {{ __('triproof.common.validation_errors') }}
+                        <ul class="mt-1 list-disc list-inside space-y-1">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
 
                 <div>
                     <label for="edit-buyer-name-{{ $buyer->id }}" class="label">{{ __('triproof.admin.buyers.name') }}</label>
-                    <input id="edit-buyer-name-{{ $buyer->id }}" name="name" type="text" class="input" value="{{ old('name', $buyer->name) }}" required>
+                    <input id="edit-buyer-name-{{ $buyer->id }}" name="name" type="text" class="input" value="{{ $isCurrentDialog ? old('name') : $buyer->name }}" required>
                 </div>
 
                 <div>
                     <label for="edit-buyer-email-{{ $buyer->id }}" class="label">{{ __('triproof.admin.buyers.email') }}</label>
-                    <input id="edit-buyer-email-{{ $buyer->id }}" name="email" type="email" class="input" value="{{ old('email', $buyer->email) }}" required>
+                    <input id="edit-buyer-email-{{ $buyer->id }}" name="email" type="email" class="input" value="{{ $isCurrentDialog ? old('email') : $buyer->email }}" required>
                 </div>
 
                 <div>
@@ -82,8 +110,8 @@
                 <div>
                     <label for="edit-buyer-language-{{ $buyer->id }}" class="label">{{ __('triproof.admin.buyers.language') }}</label>
                     <select id="edit-buyer-language-{{ $buyer->id }}" name="language_pref" class="select">
-                        <option value="en" {{ old('language_pref', $buyer->language_pref ?? 'en') === 'en' ? 'selected' : '' }}>English</option>
-                        <option value="bn" {{ old('language_pref', $buyer->language_pref) === 'bn' ? 'selected' : '' }}>বাংলা</option>
+                        <option value="en" {{ $isCurrentDialog ? (old('language_pref', $buyer->language_pref ?? 'en') === 'en' ? 'selected' : '') : (($buyer->language_pref ?? 'en') === 'en' ? 'selected' : '') }}>English</option>
+                        <option value="bn" {{ $isCurrentDialog ? (old('language_pref', $buyer->language_pref) === 'bn' ? 'selected' : '') : ((($buyer->language_pref ?? 'en') === 'bn') ? 'selected' : '') }}>বাংলা</option>
                     </select>
                 </div>
 

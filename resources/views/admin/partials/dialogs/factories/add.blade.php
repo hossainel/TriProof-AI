@@ -12,36 +12,50 @@
 
         <form method="POST" action="{{ route('admin.factories.store') }}" class="space-y-4 p-6">
             @csrf
+            <input type="hidden" name="dialog_id" value="add-factory-dialog">
+
+            @php($isCurrentDialog = old('dialog_id') === 'add-factory-dialog')
+
+            @if ($isCurrentDialog && $errors->any())
+                <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                    {{ __('triproof.common.validation_errors') }}
+                    <ul class="mt-1 list-disc list-inside space-y-1">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
 
             <div>
                 <label for="add-factory-code" class="label">{{ __('triproof.admin.factories.code') }}</label>
-                <input id="add-factory-code" name="code" type="text" class="input input-uppercase" maxlength="32" placeholder="BD06" value="{{ old('code') }}" required>
+                <input id="add-factory-code" name="code" type="text" class="input input-uppercase" maxlength="32" placeholder="BD06" value="{{ $isCurrentDialog ? old('code') : '' }}" required>
                 <p class="hint mt-1">{{ __('triproof.admin.factories.code_hint') }}</p>
             </div>
 
             <div>
                 <label for="add-factory-name-en" class="label">{{ __('triproof.admin.factories.name_en') }}</label>
-                <input id="add-factory-name-en" name="name_en" type="text" class="input" value="{{ old('name_en') }}" required>
+                <input id="add-factory-name-en" name="name_en" type="text" class="input" value="{{ $isCurrentDialog ? old('name_en') : '' }}" required>
             </div>
 
             <div>
                 <label for="add-factory-name-bn" class="label">{{ __('triproof.admin.factories.name_bn') }}</label>
-                <input id="add-factory-name-bn" name="name_bn" type="text" class="input" value="{{ old('name_bn') }}">
+                <input id="add-factory-name-bn" name="name_bn" type="text" class="input" value="{{ $isCurrentDialog ? old('name_bn') : '' }}">
             </div>
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label for="add-factory-location" class="label">{{ __('triproof.admin.factories.location') }}</label>
-                    <input id="add-factory-location" name="location" type="text" class="input" value="{{ old('location') }}">
+                    <input id="add-factory-location" name="location" type="text" class="input" value="{{ $isCurrentDialog ? old('location') : '' }}">
                 </div>
                 <div>
                     <label for="add-factory-contact-email" class="label">{{ __('triproof.admin.factories.contact_email') }}</label>
-                    <input id="add-factory-contact-email" name="contact_email" type="email" class="input" value="{{ old('contact_email') }}">
+                    <input id="add-factory-contact-email" name="contact_email" type="email" class="input" value="{{ $isCurrentDialog ? old('contact_email') : '' }}">
                 </div>
             </div>
 
             <div class="flex items-center gap-2">
-                <input id="add-factory-is-active" name="is_active" type="checkbox" class="checkbox" {{ old('is_active', true) ? 'checked' : '' }}>
+                <input id="add-factory-is-active" name="is_active" type="checkbox" class="checkbox" {{ $isCurrentDialog ? (old('is_active', true) ? 'checked' : '') : 'checked' }}>
                 <label for="add-factory-is-active" class="label">{{ __('triproof.admin.factories.active') }}</label>
             </div>
 
@@ -70,35 +84,49 @@
                 @csrf @method('PUT')
 
                 <input type="hidden" name="id" value="{{ $factory->id }}">
+                <input type="hidden" name="dialog_id" value="edit-factory-{{ $factory->id }}">
+
+                @php($isCurrentDialog = old('dialog_id') === 'edit-factory-' . $factory->id)
+
+                @if ($isCurrentDialog && $errors->any())
+                    <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                        {{ __('triproof.common.validation_errors') }}
+                        <ul class="mt-1 list-disc list-inside space-y-1">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
 
                 <div>
                     <label for="edit-factory-code-{{ $factory->id }}" class="label">{{ __('triproof.admin.factories.code') }}</label>
-                    <input id="edit-factory-code-{{ $factory->id }}" name="code" type="text" class="input input-uppercase" maxlength="32" value="{{ old('code', $factory->code) }}" required>
+                    <input id="edit-factory-code-{{ $factory->id }}" name="code" type="text" class="input input-uppercase" maxlength="32" value="{{ $isCurrentDialog ? old('code') : $factory->code }}" required>
                 </div>
 
                 <div>
                     <label for="edit-factory-name-en-{{ $factory->id }}" class="label">{{ __('triproof.admin.factories.name_en') }}</label>
-                    <input id="edit-factory-name-en-{{ $factory->id }}" name="name_en" type="text" class="input" value="{{ old('name_en', $factory->name_en) }}" required>
+                    <input id="edit-factory-name-en-{{ $factory->id }}" name="name_en" type="text" class="input" value="{{ $isCurrentDialog ? old('name_en') : $factory->name_en }}" required>
                 </div>
 
                 <div>
                     <label for="edit-factory-name-bn-{{ $factory->id }}" class="label">{{ __('triproof.admin.factories.name_bn') }}</label>
-                    <input id="edit-factory-name-bn-{{ $factory->id }}" name="name_bn" type="text" class="input" value="{{ old('name_bn', $factory->name_bn) }}">
+                    <input id="edit-factory-name-bn-{{ $factory->id }}" name="name_bn" type="text" class="input" value="{{ $isCurrentDialog ? old('name_bn') : $factory->name_bn }}">
                 </div>
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <label for="edit-factory-location-{{ $factory->id }}" class="label">{{ __('triproof.admin.factories.location') }}</label>
-                        <input id="edit-factory-location-{{ $factory->id }}" name="location" type="text" class="input" value="{{ old('location', $factory->location) }}">
+                        <input id="edit-factory-location-{{ $factory->id }}" name="location" type="text" class="input" value="{{ $isCurrentDialog ? old('location') : $factory->location }}">
                     </div>
                     <div>
                         <label for="edit-factory-contact-email-{{ $factory->id }}" class="label">{{ __('triproof.admin.factories.contact_email') }}</label>
-                        <input id="edit-factory-contact-email-{{ $factory->id }}" name="contact_email" type="email" class="input" value="{{ old('contact_email', $factory->contact_email) }}">
+                        <input id="edit-factory-contact-email-{{ $factory->id }}" name="contact_email" type="email" class="input" value="{{ $isCurrentDialog ? old('contact_email') : $factory->contact_email }}">
                     </div>
                 </div>
 
                 <div class="flex items-center gap-2">
-                    <input id="edit-factory-is-active-{{ $factory->id }}" name="is_active" type="checkbox" class="checkbox" {{ old('is_active', $factory->is_active) ? 'checked' : '' }}>
+                    <input id="edit-factory-is-active-{{ $factory->id }}" name="is_active" type="checkbox" class="checkbox" {{ $isCurrentDialog ? (old('is_active', $factory->is_active) ? 'checked' : '') : ($factory->is_active ? 'checked' : '') }}>
                     <label for="edit-factory-is-active-{{ $factory->id }}" class="label">{{ __('triproof.admin.factories.active') }}</label>
                 </div>
 

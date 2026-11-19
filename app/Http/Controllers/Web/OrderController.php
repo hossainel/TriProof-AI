@@ -35,7 +35,10 @@ class OrderController extends Controller
         ]);
 
         if ($request->user()->isAdmin() && empty($data['buyer_id'])) {
-            return back()->withErrors(['buyer_id' => __('triproof.validation.buyer_required')])->withInput();
+            return back()
+                ->withErrors(['buyer_id' => __('triproof.validation.buyer_required')])
+                ->withInput()
+                ->with('dialog_id', 'create-order-dialog');
         }
 
         try {
@@ -67,7 +70,10 @@ class OrderController extends Controller
         try {
             $result = $service->generate($po, $request->user(), $data);
         } catch (BusinessRuleException $e) {
-            return back()->withErrors(['generate' => $e->getMessage()])->withInput();
+            return back()
+                ->withErrors(['generate' => $e->getMessage()])
+                ->withInput()
+                ->with('dialog_id', 'generate-dialog');
         }
 
         return redirect()->route('dashboard')
@@ -103,7 +109,10 @@ class OrderController extends Controller
         try {
             $result = $service->pack($request->user(), array_merge($data, ['po_id' => $po->id]));
         } catch (BusinessRuleException $e) {
-            return back()->withErrors(['pack' => $e->getMessage()])->withInput();
+            return back()
+                ->withErrors(['pack' => $e->getMessage()])
+                ->withInput()
+                ->with('dialog_id', 'pack-dialog');
         }
 
         return redirect()->route('dashboard')
@@ -229,7 +238,10 @@ class OrderController extends Controller
         try {
             $result = $service->trigger($request->user(), $data);
         } catch (BusinessRuleException $e) {
-            return back()->withErrors(['recall' => $e->getMessage()])->withInput();
+            return back()
+                ->withErrors(['recall' => $e->getMessage()])
+                ->withInput()
+                ->with('dialog_id', 'recall-dialog');
         }
 
         return redirect()->route('dashboard')

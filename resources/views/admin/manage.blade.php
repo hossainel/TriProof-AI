@@ -123,6 +123,8 @@
                                     </button>
                                     <form method="POST" action="{{ route('admin.buyers.destroy', $buyer) }}" class="inline ml-2" data-confirm="{{ __('triproof.admin.buyers.confirm_delete') }}">
                                         @csrf @method('DELETE')
+                                        <input type="hidden" name="dialog_id" value="edit-buyer-{{ $buyer->id }}">
+                                        <input type="hidden" name="active_tab" value="admin-buyers">
                                         <button type="submit" class="btn btn-danger btn-xs {{ $buyer->purchase_orders_count > 0 ? 'opacity-50 cursor-not-allowed' : '' }}" title="{{ $buyer->purchase_orders_count > 0 ? __('triproof.admin.buyers.cannot_delete') : '' }}" {{ $buyer->purchase_orders_count > 0 ? 'disabled' : '' }}>
                                             {{ __('triproof.admin.buyers.delete') }}
                                         </button>
@@ -187,6 +189,8 @@
                                     @endphp
                                     <form method="POST" action="{{ route('admin.factories.destroy', $factory) }}" class="inline ml-2" data-confirm="{{ __('triproof.admin.factories.confirm_delete') }}">
                                         @csrf @method('DELETE')
+                                        <input type="hidden" name="dialog_id" value="edit-factory-{{ $factory->id }}">
+                                        <input type="hidden" name="active_tab" value="admin-factories">
                                         <button type="submit" class="btn btn-danger btn-xs {{ $factoryBlocked ? 'opacity-50 cursor-not-allowed' : '' }}" title="{{ $factoryBlocked ? __('triproof.admin.factories.cannot_delete') : '' }}" {{ $factoryBlocked ? 'disabled' : '' }}>
                                             {{ __('triproof.admin.factories.delete') }}
                                         </button>
@@ -247,6 +251,8 @@
                                     </button>
                                     <form method="POST" action="{{ route('admin.operators.destroy', $operator) }}" class="inline ml-2" data-confirm="{{ __('triproof.admin.operators.confirm_delete') }}">
                                         @csrf @method('DELETE')
+                                        <input type="hidden" name="dialog_id" value="edit-operator-{{ $operator->id }}">
+                                        <input type="hidden" name="active_tab" value="admin-operators">
                                         <button type="submit" class="btn btn-danger btn-xs">
                                             {{ __('triproof.admin.operators.delete') }}
                                         </button>
@@ -271,6 +277,7 @@
 
             <form method="POST" action="{{ route('admin.settings.update') }}" class="space-y-5 mt-8">
                 @csrf @method('PUT')
+                <input type="hidden" name="active_tab" value="admin-settings">
 
                 <div class="grid gap-5 sm:grid-cols-2">
                     <div>
@@ -343,36 +350,3 @@
         </div>
     </section>
 @endsection
-
-@if (old('dialog_id'))
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('{{ old('dialog_id') }}')?.showModal();
-        });
-    </script>
-@endif
-
-@push('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const tabs = document.querySelectorAll('.tabs a');
-            const panels = document.querySelectorAll('.tab-panel');
-
-            tabs.forEach((tab) => {
-                tab.addEventListener('click', (event) => {
-                    event.preventDefault();
-
-                    tabs.forEach((t) => {
-                        t.classList.remove('tab-active');
-                        t.setAttribute('aria-selected', 'false');
-                    });
-                    tab.classList.add('tab-active');
-                    tab.setAttribute('aria-selected', 'true');
-
-                    panels.forEach((panel) => panel.classList.add('hidden'));
-                    document.getElementById(tab.getAttribute('href').slice(1)).classList.remove('hidden');
-                });
-            });
-        });
-    </script>
-@endpush

@@ -249,9 +249,40 @@
         justify-content: center;
     }
 
-    .tp-dialog::backdrop {
-        background: rgba(15, 23, 42, 0.55);
-        backdrop-filter: blur(5px);
+    dialog.tp-dialog:not([open]) {
+        display: none !important;
+    }
+
+    dialog.tp-dialog[open] {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        inset: 0;
+        margin: auto;
+        width: calc(100vw - 2rem);
+        max-width: 34rem;
+        max-height: calc(100dvh - 2rem);
+        overflow: hidden;
+        border-radius: 1.25rem;
+        border: 1px solid rgb(226 232 240);
+        background-color: #ffffff;
+        color: #0f172a;
+        padding: 0;
+        box-shadow: 0 25px 50px -12px rgb(15 23 42 / 0.35);
+        z-index: 60;
+    }
+
+    dialog.tp-dialog .tp-dialog-panel {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100dvh - 2rem);
+        overflow-y: auto;
+    }
+
+    dialog.tp-dialog::backdrop {
+        background: rgb(15 23 42 / 0.6);
+        backdrop-filter: blur(3px);
     }
 
     .tp-dialog-panel {

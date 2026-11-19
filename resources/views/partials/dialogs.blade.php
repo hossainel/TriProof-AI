@@ -22,6 +22,20 @@
 
             <form method="POST" action="{{ route('orders.store') }}" class="space-y-4 p-6">
                 @csrf
+                <input type="hidden" name="dialog_id" value="create-order-dialog">
+
+                @php($isCurrentDialog = old('dialog_id') === 'create-order-dialog')
+
+                @if ($isCurrentDialog && $errors->any())
+                    <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                        {{ __('triproof.common.validation_errors') }}
+                        <ul class="mt-1 list-disc list-inside space-y-1">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
 
                 @if ($user->isAdmin())
                     <div>
@@ -54,12 +68,12 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <label for="create-po-number" class="label">{{ __('triproof.forms.create_order.po_number') }}</label>
-                        <input id="create-po-number" name="po_number" type="text" class="input" maxlength="64" placeholder="PO-2026-001">
+                        <input id="create-po-number" name="po_number" type="text" class="input" maxlength="64" placeholder="PO-2026-001" value="{{ $isCurrentDialog ? old('po_number') : '' }}">
                         <p class="hint mt-1">{{ __('triproof.forms.create_order.po_number_hint') }}</p>
                     </div>
                     <div>
                         <label for="create-quota" class="label">{{ __('triproof.forms.create_order.authorized_quota') }}</label>
-                        <input id="create-quota" name="authorized_quota" type="number" class="input" min="1" max="1000000" value="{{ old('authorized_quota', 100) }}" required>
+                        <input id="create-quota" name="authorized_quota" type="number" class="input" min="1" max="1000000" value="{{ $isCurrentDialog ? old('authorized_quota', 100) : 100 }}" required>
                     </div>
                 </div>
 
@@ -67,14 +81,14 @@
                     <div>
                         <label for="create-factory-days" class="label">{{ __('triproof.forms.create_order.factory_window') }}</label>
                         <div class="relative">
-                            <input id="create-factory-days" name="factory_expiry_days" type="number" class="input pr-12" min="1" max="365" value="{{ old('factory_expiry_days', $defaultFactoryDays) }}" required>
+                            <input id="create-factory-days" name="factory_expiry_days" type="number" class="input pr-12" min="1" max="365" value="{{ $isCurrentDialog ? old('factory_expiry_days', $defaultFactoryDays) : $defaultFactoryDays }}" required>
                             <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-slate-400">{{ __('triproof.forms.create_order.days') }}</span>
                         </div>
                     </div>
                     <div>
                         <label for="create-retail-days" class="label">{{ __('triproof.forms.create_order.retail_expiry') }}</label>
                         <div class="relative">
-                            <input id="create-retail-days" name="retail_expiry_days" type="number" class="input pr-12" min="1" max="3650" value="{{ old('retail_expiry_days', $defaultRetailDays) }}" required>
+                            <input id="create-retail-days" name="retail_expiry_days" type="number" class="input pr-12" min="1" max="3650" value="{{ $isCurrentDialog ? old('retail_expiry_days', $defaultRetailDays) : $defaultRetailDays }}" required>
                             <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-slate-400">{{ __('triproof.forms.create_order.days') }}</span>
                         </div>
                     </div>
@@ -115,6 +129,9 @@
 
         <form id="generate-form" method="POST" action="#" data-dynamic-action class="space-y-4 p-6">
             @csrf
+            <input type="hidden" name="dialog_id" value="generate-dialog">
+
+            @php($isCurrentDialog = old('dialog_id') === 'generate-dialog')
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -137,12 +154,12 @@
                 </div>
                 <div>
                     <label for="generate-count" class="label">{{ __('triproof.forms.generate.count') }}</label>
-                    <input id="generate-count" name="count" type="number" class="input" min="1" max="{{ $maxGenerate }}" value="1" required>
+                    <input id="generate-count" name="count" type="number" class="input" min="1" max="{{ $maxGenerate }}" value="{{ $isCurrentDialog ? old('count', 1) : 1 }}" required>
                     <p class="hint mt-1">{{ __('triproof.forms.generate.count_hint') }}</p>
                 </div>
                 <div>
                     <label for="generate-date" class="label">{{ __('triproof.forms.generate.prod_date') }}</label>
-                    <input id="generate-date" name="prod_date" type="date" class="input" value="{{ now()->toDateString() }}">
+                    <input id="generate-date" name="prod_date" type="date" class="input" value="{{ $isCurrentDialog ? old('prod_date') : now()->toDateString() }}">
                 </div>
             </div>
 
@@ -180,6 +197,7 @@
 
         <form method="POST" action="#" data-dynamic-action class="space-y-4 p-6">
             @csrf
+            <input type="hidden" name="dialog_id" value="pack-dialog">
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -230,6 +248,7 @@
 
         <form method="POST" action="{{ route('recall.trigger') }}" class="space-y-4 p-6" data-confirm="{{ __('triproof.forms.recall.confirm') }}">
             @csrf
+            <input type="hidden" name="dialog_id" value="recall-dialog">
 
             <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
                 {{ __('triproof.forms.recall.warning') }}

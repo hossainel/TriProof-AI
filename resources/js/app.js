@@ -15,6 +15,7 @@ ready(() => {
     initSidebar();
     initTabs();
     initDialogs();
+    initAutoOpenDialog();
     initLocaleSwitch();
     initChart();
     initMap();
@@ -112,81 +113,126 @@ function initTabs() {
 }
 
 function initDialogs() {
-    document.querySelectorAll('[data-open-dialog]').forEach((trigger) => {
-        trigger.addEventListener('click', () => {
-            const dialog = document.getElementById(trigger.dataset.openDialog);
+    // Document-level delegation so buttons inside tabs / dynamic sections work.
+    document.addEventListener('click', (event) => {
+        const openTrigger = event.target.closest('[data-open-dialog]');
+        if (openTrigger) {
+            const targetId = openTrigger.dataset.openDialog;
+            const dialog = document.getElementById(targetId);
             if (!dialog) return;
 
             const form = dialog.querySelector('form[data-dynamic-action]') || dialog.querySelector('form');
 
-            if (form && trigger.dataset.action) {
-                form.setAttribute('action', trigger.dataset.action);
+            if (form && openTrigger.dataset.action) {
+                form.setAttribute('action', openTrigger.dataset.action);
             }
 
             dialog.querySelectorAll('[data-dialog-context]').forEach((element) => {
-                element.textContent = trigger.dataset.context || '';
+                element.textContent = openTrigger.dataset.context || '';
             });
 
             if (form) {
                 ['factory', 'machine', 'batch'].forEach((field) => {
-                    const value = trigger.dataset[field];
+                    const value = openTrigger.dataset[field];
                     if (value === undefined) return;
-                    const input = form.elements.namedItem(`${field}_id`);
+                    const input = form.elements.namedItem(field + '_id');
                     if (input) input.value = value;
                 });
 
-                if ('resetScope' in trigger.dataset) {
+                if ('resetScope' in openTrigger.dataset) {
                     ['machine_id', 'batch_id'].forEach((name) => {
                         const input = form.elements.namedItem(name);
                         if (input) input.value = '';
                     });
                 }
+
+                if (openTrigger.dataset.remaining !== undefined && form) {
+                    const remaining = Math.max(0, Number(openTrigger.dataset.remaining) || 0);
+                    const count = form.elements.namedItem('count');
+
+                    if (count instanceof HTMLInputElement) {
+                        count.max = String(remaining);
+                        count.value = String(Math.min(remaining, 100));
+                    }
+
+                    const remainingLabel = dialog.querySelector('[data-remaining-label]');
+                    if (remainingLabel && dialog.dataset.remainingTemplate) {
+                        remainingLabel.textContent = dialog.dataset.remainingTemplate.replaceAll(
+                            '__COUNT__',
+                            remaining.toLocaleString()
+                        );
+                    }
+
+                    syncGenerateLabels(dialog, form);
+                }
             }
 
-            if (trigger.dataset.remaining !== undefined && form) {
-                const remaining = Math.max(0, Number(trigger.dataset.remaining) || 0);
-                const count = form.elements.namedItem('count');
-
-                if (count instanceof HTMLInputElement) {
-                    count.max = String(remaining);
-                    count.value = String(Math.min(remaining, 100));
-                }
-
-                const remainingLabel = dialog.querySelector('[data-remaining-label]');
-                if (remainingLabel && dialog.dataset.remainingTemplate) {
-                    remainingLabel.textContent = dialog.dataset.remainingTemplate.replaceAll(
-                        '__COUNT__',
-                        remaining.toLocaleString()
-                    );
-                }
-
-                syncGenerateLabels(dialog, form);
+            if (openTrigger.dataset.merkleUrl) {
+                loadMerkle(dialog, openTrigger.dataset.merkleUrl);
             }
 
+            dialog.removeAttribute('hidden');
             dialog.showModal();
+            dialog.setAttribute('open', '');
+            return;
+        }
 
-            if (trigger.dataset.merkleUrl) {
-                loadMerkle(dialog, trigger.dataset.merkleUrl);
-            }
-        });
+        const closeTrigger = event.target.closest('[data-close-dialog]');
+        if (closeTrigger) {
+            closeTrigger.closest('dialog')?.close();
+            return;
+        }
+
+        if (event.target instanceof HTMLDialogElement && event.target.classList.contains('tp-dialog')) {
+            event.target.close();
+        }
     });
 
-    document.querySelectorAll('[data-close-dialog]').forEach((button) => {
-        button.addEventListener('click', () => {
-            button.closest('dialog')?.close();
-        });
-    });
-
+    // Keep existing per-dialog form listeners (generate count sync, etc.).
     document.querySelectorAll('dialog.tp-dialog').forEach((dialog) => {
-        dialog.addEventListener('click', (event) => {
-            if (event.target === dialog) dialog.close();
-        });
-
         const form = dialog.querySelector('#generate-form');
         if (form) {
             form.addEventListener('input', () => syncGenerateLabels(dialog, form));
         }
     });
+}
+
+function initAutoOpenDialog() {
+    const body = document.body;
+    const targetId = body.dataset.openDialog || '';
+    if (!targetId) return;
+
+    const dialog = document.getElementById(targetId);
+    if (!dialog) return;
+
+    // Activate the parent tab panel + matching tab first.
+    const panel = dialog.closest('.tab-panel');
+    if (panel) {
+        panel.classList.remove('hidden');
+        const tablist = panel.closest('section')?.querySelector('ul[role="tablist"]') || document.querySelector('ul[role="tablist"]');
+        if (tablist) {
+            const hash = '#' + targetId;
+            tablist.querySelectorAll('a[role="tab"]').forEach((tab) => {
+                const isMatch = tab.getAttribute('href') === hash;
+                tab.classList.toggle('tab-active', isMatch);
+                tab.setAttribute('aria-selected', String(isMatch));
+            });
+        }
+
+        // Sync sidebar active state via data-sidebar-hash.
+        document.querySelectorAll('[data-sidebar-hash]').forEach((link) => {
+            link.classList.toggle('nav-link-active', link.dataset.sidebarHash === targetId);
+        });
+
+        // Update URL hash without scrolling.
+        if (window.location.hash.replace(/^#/, '') !== targetId) {
+            window.history.replaceState(null, '', '#' + targetId);
+        }
+    }
+
+    dialog.removeAttribute('hidden');
+    dialog.showModal();
+    dialog.setAttribute('open', '');
 }
 
 function syncGenerateLabels(dialog, form) {
