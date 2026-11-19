@@ -64,6 +64,16 @@
         </button>
     </form>
 
+    <div class="mt-6 border-t border-slate-200 pt-5 text-center">
+        <a
+            href="{{ route('about') }}"
+            class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-sky-700"
+        >
+            <span>{{ trans('about.title') }}</span>
+            <span aria-hidden="true">&rarr;</span>
+        </a>
+    </div>
+
     <div class="mt-6 rounded-2xl border border-slate-200 bg-white/60 p-4">
         <div class="flex items-start gap-3">
             <x-icon name="lock" class="mt-0.5 h-4 w-4 shrink-0 text-brand-700" />

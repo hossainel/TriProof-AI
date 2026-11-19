@@ -20,4 +20,14 @@ class LanguageController extends Controller
 
         return back();
     }
+
+    public function change(Request $request, string $locale): RedirectResponse
+    {
+        abort_unless(in_array($locale, ['en', 'bn'], true), 404);
+
+        $request->session()->put('locale', $locale);
+        $request->user()?->update(['language_pref' => $locale]);
+
+        return back(fallback: route('about'));
+    }
 }

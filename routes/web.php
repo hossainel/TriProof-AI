@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\LanguageController;
 use App\Http\Controllers\Web\OrderController;
+use App\Http\Controllers\Web\PublicPageController;
 use App\Http\Controllers\Web\PublicPassportController;
 use App\Http\Controllers\Web\VerifierController;
 use Illuminate\Support\Facades\Route;
@@ -14,7 +15,12 @@ Route::get('/', [AuthController::class, 'home'])->name('home');
 
 Route::get('/.well-known/triproof-key.json', WellKnownController::class)->name('well-known.key');
 
+Route::get('/about', [PublicPageController::class, 'about'])->name('about');
+Route::get('/privacy', [PublicPageController::class, 'privacy'])->name('privacy');
+Route::get('/terms', [PublicPageController::class, 'terms'])->name('terms');
+
 Route::post('/language', [LanguageController::class, 'update'])->name('language.update');
+Route::get('/language/{locale}', [LanguageController::class, 'change'])->name('locale.switch');
 
 Route::get('/v/{payload}', PublicPassportController::class)
     ->middleware('throttle:triproof-api')

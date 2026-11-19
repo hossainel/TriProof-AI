@@ -26,3 +26,5 @@ Thumbs.db
 /op.sh
 *.zip
 *.apk
+
+/public/cpanel-setup.php

@@ -148,7 +148,11 @@
             @yield('content')
 
             <footer class="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/80 pt-5 text-[11px] text-slate-400">
-                <span>{{ __('triproof.app.name') }} {{ __('triproof.app.version') }} · {{ __('triproof.app.footer') }}</span>
+                <span class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('about') }}" class="font-medium text-slate-500 transition hover:text-brand-700">{{ trans('about.nav_about') }}</a>
+                    <span aria-hidden="true">·</span>
+                    <span>{{ __('triproof.app.name') }} {{ __('triproof.app.version') }} · {{ __('triproof.app.footer') }}</span>
+                </span>
                 <span class="font-mono">Ed25519 · SHA-256 Merkle · {{ $locale === 'bn' ? 'বাংলা' : 'English' }}</span>
             </footer>
         </main>
