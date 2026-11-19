@@ -6,9 +6,11 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\AiAnomalyReport;
 use App\Models\BlockchainAnchor;
+use App\Models\Factory;
 use App\Models\PurchaseOrder;
 use App\Models\RecallEvent;
 use App\Models\SerialRegistry;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\Crypto\MasterKeyService;
 use App\Services\Crypto\SerialCryptoService;
@@ -74,27 +76,42 @@ class DashboardController extends Controller
             ->limit(100)
             ->get();
 
-        $factories = User::query()
-            ->where('role', UserRole::FactoryQa)
-            ->whereNotNull('factory_id')
-            ->orderBy('factory_id')
-            ->get(['id', 'name', 'factory_id'])
-            ->unique('factory_id')
-            ->values();
+        $factories = Factory::query()
+            ->active()
+            ->orderBy('code')
+            ->get();
 
         $buyers = User::query()
             ->where('role', UserRole::GlobalBuyer)
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
 
-        $accessibleFactories = $factories->pluck('factory_id')->filter()->values()->all();
+        $legacyFactoryCodes = User::query()
+            ->where('role', UserRole::FactoryQa)
+            ->whereNotNull('factory_id')
+            ->distinct()
+            ->pluck('factory_id')
+            ->merge(PurchaseOrder::query()->distinct()->pluck('factory_id'))
+            ->filter()
+            ->map(fn ($code) => strtoupper((string) $code))
+            ->unique()
+            ->values();
+
+        $accessibleFactories = $factories->pluck('code')
+            ->merge($legacyFactoryCodes)
+            ->unique()
+            ->values()
+            ->all();
+
         if ($user->isFactory()) {
             $accessibleFactories = array_values(array_filter([$user->factory_id]));
         } elseif ($user->isBuyer()) {
             $accessibleFactories = $orders->pluck('factory_id')->merge(
                 PurchaseOrder::query()->where('buyer_id', $user->id)->pluck('factory_id')
-            )->unique()->filter()->values()->all();
+            )->merge($factories->pluck('code'))->unique()->filter()->values()->all();
         }
+
+        $platformSettings = array_merge(SystemSetting::DEFAULTS, SystemSetting::allAsArray());
 
         $anomalyQuery = AiAnomalyReport::query()
             ->with('po:id,po_number')
@@ -160,6 +177,7 @@ class DashboardController extends Controller
             'orders' => $orders,
             'factories' => $factories,
             'buyers' => $buyers,
+            'platformSettings' => $platformSettings,
             'anomalies' => $anomalies,
             'recalls' => $recalls,
             'batches' => $batchQuery,

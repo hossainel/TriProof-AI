@@ -319,6 +319,19 @@ class AppViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deletes the scan history row identified by [syncUuid] and refreshes
+  /// history / pending-sync count.
+  Future<void> deleteScanRecord(String syncUuid) async {
+    await _databaseHelper.deleteScanRecord(syncUuid);
+    await _reloadDbCollections();
+  }
+
+  /// Deletes every row from local scan history and refreshes collections.
+  Future<void> clearScanHistory() async {
+    await _databaseHelper.clearScanHistory();
+    await _reloadDbCollections();
+  }
+
   /// Builds the cryptographic QR payload for secondhand ownership transfer.
   Future<String> generateTransferOwnershipQr(ScanRecord record) async {
     final token = _deviceToken.isNotEmpty

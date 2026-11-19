@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\UserRole;
 use App\Exceptions\BusinessRuleException;
 use App\Models\PurchaseOrder;
+use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -47,8 +48,10 @@ class PurchaseOrderService
             throw new BusinessRuleException('invalid_quota', 'Authorized quota must be between 1 and 1,000,000 units.');
         }
 
-        $factoryDays = (int) ($data['factory_expiry_days'] ?? config('triproof.factory.default_expiry_days'));
-        $retailDays = (int) ($data['retail_expiry_days'] ?? config('triproof.factory.default_retail_expiry_days'));
+        $factoryDays = (int) ($data['factory_expiry_days']
+            ?? SystemSetting::getValue('default_factory_expiry_days', (string) config('triproof.factory.default_expiry_days')));
+        $retailDays = (int) ($data['retail_expiry_days']
+            ?? SystemSetting::getValue('default_retail_expiry_days', (string) config('triproof.factory.default_retail_expiry_days')));
 
         if ($factoryDays < 1 || $factoryDays > 365) {
             throw new BusinessRuleException('invalid_factory_expiry', 'Factory packing window must be 1-365 days.');

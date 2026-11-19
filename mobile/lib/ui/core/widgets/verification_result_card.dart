@@ -15,6 +15,7 @@ class VerificationResultCard extends StatelessWidget {
     required this.result,
     required this.language,
     required this.onTransferOwnership,
+    this.onDelete,
     this.onScanNext,
   });
 
@@ -26,6 +27,10 @@ class VerificationResultCard extends StatelessWidget {
 
   /// Callback invoked when the user taps "Transfer Ownership QR".
   final VoidCallback onTransferOwnership;
+
+  /// Optional callback to delete the underlying scan record (used from the
+  /// history details sheet).
+  final VoidCallback? onDelete;
 
   /// Optional callback to launch another scan right away.
   final VoidCallback? onScanNext;
@@ -246,6 +251,18 @@ class VerificationResultCard extends StatelessWidget {
                 onPressed: onScanNext,
                 icon: const Icon(Icons.qr_code_scanner_rounded),
                 label: Text(s.scanNextItem),
+              ),
+            ],
+            if (onDelete != null) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                key: const Key('delete_history_record_button'),
+                onPressed: onDelete,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.alertRed,
+                ),
+                icon: const Icon(Icons.delete_rounded, size: 18),
+                label: Text(s.deleteHistoryItem),
               ),
             ],
           ],

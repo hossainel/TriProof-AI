@@ -3,6 +3,8 @@
     $canCreate = $user->isBuyer() || $user->isAdmin();
     $createDisabled = $factories->isEmpty() || ($user->isAdmin() && $buyers->isEmpty());
     $maxGenerate = (int) config('triproof.exports.max_generate', 50000);
+    $defaultFactoryDays = (int) ($platformSettings['default_factory_expiry_days'] ?? config('triproof.factory.default_expiry_days'));
+    $defaultRetailDays = (int) ($platformSettings['default_retail_expiry_days'] ?? config('triproof.factory.default_retail_expiry_days'));
 @endphp
 
 @if ($canCreate)
@@ -41,7 +43,7 @@
                     <select id="create-factory" name="factory_id" class="select" required>
                         <option value="">{{ __('triproof.forms.create_order.select_factory') }}</option>
                         @foreach ($factories as $factory)
-                            <option value="{{ $factory->factory_id }}">{{ $factory->factory_id }} · {{ $factory->name }}</option>
+                            <option value="{{ $factory->code }}">{{ $factory->code }} · {{ $factory->name_en }}</option>
                         @endforeach
                     </select>
                     @if ($factories->isEmpty())
@@ -65,14 +67,14 @@
                     <div>
                         <label for="create-factory-days" class="label">{{ __('triproof.forms.create_order.factory_window') }}</label>
                         <div class="relative">
-                            <input id="create-factory-days" name="factory_expiry_days" type="number" class="input pr-12" min="1" max="365" value="{{ old('factory_expiry_days', 45) }}" required>
+                            <input id="create-factory-days" name="factory_expiry_days" type="number" class="input pr-12" min="1" max="365" value="{{ old('factory_expiry_days', $defaultFactoryDays) }}" required>
                             <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-slate-400">{{ __('triproof.forms.create_order.days') }}</span>
                         </div>
                     </div>
                     <div>
                         <label for="create-retail-days" class="label">{{ __('triproof.forms.create_order.retail_expiry') }}</label>
                         <div class="relative">
-                            <input id="create-retail-days" name="retail_expiry_days" type="number" class="input pr-12" min="1" max="3650" value="{{ old('retail_expiry_days', 365) }}" required>
+                            <input id="create-retail-days" name="retail_expiry_days" type="number" class="input pr-12" min="1" max="3650" value="{{ old('retail_expiry_days', $defaultRetailDays) }}" required>
                             <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-slate-400">{{ __('triproof.forms.create_order.days') }}</span>
                         </div>
                     </div>

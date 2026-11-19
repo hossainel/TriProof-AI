@@ -187,4 +187,17 @@ class AppStrings {
         'ডেমো: রেট্রোঅ্যাক্টিভ ক্লোন/রিকল সিঙ্ক টেস্ট',
       );
   String get markAllRead => pick('Mark All Read', 'সব পঠিত চিহ্নিত করুন');
+
+  // History deletion
+  String get deleteHistoryItem => pick('Delete Record', 'রেকর্ড মুছে ফেলুন');
+  String get clearAllHistory => pick('Clear All History', 'সব ইতিহাস মুছে ফেলুন');
+  String get confirmDeleteItem => pick('Delete this scan record?', 'এই স্ক্যান রেকর্ডটি মুছবেন?');
+  String get confirmClearAll => pick(
+        'Clear all scan history? This cannot be undone.',
+        'সব স্ক্যান ইতিহাস মুছবেন? এটি ফেরত আনার কোনো উপায় নেই।',
+      );
+  String get deleteAction => pick('Delete', 'মুছে ফেলুন');
+  String get cancelAction => pick('Cancel', 'বাতিল');
+  String get historyDeleted => pick('Record deleted', 'রেকর্ড মুছে ফেলা হয়েছে');
+  String get historyCleared => pick('History cleared', 'ইতিহাস মুছে ফেলা হয়েছে');
 }

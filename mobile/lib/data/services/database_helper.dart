@@ -340,6 +340,32 @@ class DatabaseHelper {
     return (res.first['cnt'] as int?) ?? 0;
   }
 
+  /// Deletes the scan history row identified by [syncUuid]. Returns the number
+  /// of rows removed and invalidates in-memory session/owner caches so they
+  /// rebuild on next access.
+  Future<int> deleteScanRecord(String syncUuid) async {
+    final db = await database;
+    final deleted = await db.delete(
+      tableScanHistory,
+      where: 'sync_uuid = ?',
+      whereArgs: [syncUuid],
+    );
+    _sessionSerialCache = null;
+    _priorOwnerScanCache = null;
+    return deleted;
+  }
+
+  /// Deletes every row from `scan_history`. Returns the number of rows removed
+  /// and invalidates in-memory session/owner caches so they rebuild on next
+  /// access.
+  Future<int> clearScanHistory() async {
+    final db = await database;
+    final deleted = await db.delete(tableScanHistory);
+    _sessionSerialCache = null;
+    _priorOwnerScanCache = null;
+    return deleted;
+  }
+
   /// Updates the `cloud_status` and bilingual feedback messages for [syncUuid].
   Future<void> updateCloudVerdict({
     required String syncUuid,

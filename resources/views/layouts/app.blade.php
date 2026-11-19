@@ -13,6 +13,9 @@
     if ($user->isBuyer() || $user->isAdmin()) {
         array_unshift($operations, ['label' => __('triproof.nav.orders'), 'url' => route('dashboard').'#orders', 'icon' => 'orders']);
     }
+    if ($user->isAdmin()) {
+        $operations[] = ['label' => __('triproof.admin.manage_button'), 'url' => route('admin.manage'), 'icon' => 'users'];
+    }
     if (! $user->isBuyer()) {
         $operations[] = ['label' => __('triproof.nav.rework'), 'url' => route('dashboard').'#rework', 'icon' => 'rework'];
     }

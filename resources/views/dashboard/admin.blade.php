@@ -32,6 +32,10 @@
             </div>
 
             <div class="flex flex-wrap gap-2">
+                <a href="{{ route('admin.manage') }}" class="btn btn-secondary">
+                    <x-icon name="users" class="h-4 w-4" />
+                    {{ __('triproof.admin.manage_button') }}
+                </a>
                 <button type="button" class="btn btn-primary" data-open-dialog="create-order-dialog">
                     <x-icon name="plus" class="h-4 w-4" />
                     {{ __('triproof.dashboard.create_order') }}

@@ -6,25 +6,53 @@ use Tests\TestCase;
 
 class AboutPageTest extends TestCase
 {
+    private const TEAM = [
+        'Feroz Mahmud',
+        'Shafayet Al Hossain',
+        'Remon Islam',
+        'Masrurul Hasan Maktum',
+        'Golam Rabbani',
+    ];
+
     public function test_about_page_is_available_to_guests_in_english(): void
     {
-        $this->get(route('about'))
+        $response = $this->get(route('about'))
             ->assertOk()
             ->assertSee('About TriProof AI')
             ->assertSee('Our Mission')
-            ->assertSee('Lead Architect')
-            ->assertSee(route('login'), false);
+            ->assertSee('How It Works')
+            ->assertSee('Tech Stack')
+            ->assertSee('Meet the Team')
+            ->assertSee('Built Together')
+            ->assertSee('Log in to the verifier')
+            ->assertSee(route('login'), false)
+            ->assertSee(asset('images/feroz_mahmud.jpg'), false)
+            ->assertSee(asset('images/shafayet.jpg'), false)
+            ->assertSee(asset('images/remon_islam.png'), false)
+            ->assertSee(asset('images/masrurul_hasan.jpg'), false)
+            ->assertSee(asset('images/golam_rabbani.jpg'), false);
+
+        foreach (self::TEAM as $name) {
+            $response->assertSee($name);
+        }
     }
 
     public function test_about_page_renders_in_bangla_from_the_session_locale(): void
     {
-        $this->withSession(['locale' => 'bn'])
+        $response = $this->withSession(['locale' => 'bn'])
             ->get(route('about'))
             ->assertOk()
             ->assertSee('TriProof AI সম্পর্কে')
             ->assertSee('আমাদের লক্ষ্য')
-            ->assertSee('সাইন ইন')
+            ->assertSee('কিভাবে কাজ করে')
+            ->assertSee('আমাদের টিম')
+            ->assertSee('একসাথে গড়া')
+            ->assertSee('ভেরিফায়ারে লগ ইন করুন')
             ->assertSee('বাংলা');
+
+        foreach (self::TEAM as $name) {
+            $response->assertSee($name);
+        }
     }
 
     public function test_login_page_links_to_the_about_page(): void

@@ -12,7 +12,7 @@
             <div class="relative">
                 <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-sky-200 uppercase">
                     <span class="h-1.5 w-1.5 rounded-full bg-brand-400"></span>
-                    {{ trans('about.team_title') }}
+                    {{ trans('about.eyebrow') }}
                 </span>
 
                 <h1 class="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{{ trans('about.title') }}</h1>
@@ -42,13 +42,8 @@
         <section id="mission" class="mt-14 scroll-mt-24">
             <div class="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
                 <div>
-                    <p class="text-xs font-semibold tracking-[0.16em] text-sky-700 uppercase">{{ trans('about.team_title') }}</p>
-                    <h2 class="mt-2 text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{{ trans('about.mission_title') }}</h2>
-                    <div class="mt-4 space-y-3 text-sm leading-7 text-slate-600">
-                        <p>{{ trans('about.mission_intro') }}</p>
-                        <p>{{ trans('about.mission_intro_2') }}</p>
-                        <p>{{ trans('about.mission_intro_3') }}</p>
-                    </div>
+                    <h2 class="text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{{ trans('about.mission_title') }}</h2>
+                    <p class="mt-4 text-sm leading-7 text-slate-600">{{ trans('about.mission_intro') }}</p>
                 </div>
 
                 <ul class="space-y-3">
@@ -64,32 +59,25 @@
             </div>
         </section>
 
-        <section class="mt-16">
-            <p class="text-xs font-semibold tracking-[0.16em] text-sky-700 uppercase">{{ trans('about.how_title') }}</p>
-            <h2 class="mt-2 text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{{ trans('about.how_title') }}</h2>
+        <section id="how" class="mt-16 scroll-mt-24">
+            <h2 class="text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{{ trans('about.how_title') }}</h2>
             <p class="mt-3 max-w-3xl text-sm leading-7 text-slate-600">{{ trans('about.how_intro') }}</p>
 
-            @php
-                $stepLabels = [trans('about.how_sign'), trans('about.how_verify'), trans('about.how_audit')];
-                $stepBodies = trans('about.how_steps');
-            @endphp
-
             <div class="mt-6 grid gap-4 md:grid-cols-3">
-                @foreach ($stepLabels as $index => $label)
+                @foreach (trans('about.how_steps') as $step)
                     <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                         <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 font-mono text-sm font-bold text-sky-700">
-                            {{ str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT) }}
+                            {{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}
                         </span>
-                        <h3 class="mt-4 text-sm font-semibold text-ink-950">{{ $label }}</h3>
-                        <p class="mt-2 text-sm leading-6 text-slate-600">{{ $stepBodies[$index] ?? '' }}</p>
+                        <h3 class="mt-4 text-sm font-semibold text-ink-950">{{ $step['title'] }}</h3>
+                        <p class="mt-2 text-sm leading-6 text-slate-600">{{ $step['body'] }}</p>
                     </article>
                 @endforeach
             </div>
         </section>
 
-        <section class="mt-16">
-            <p class="text-xs font-semibold tracking-[0.16em] text-sky-700 uppercase">{{ trans('about.tech_title') }}</p>
-            <h2 class="mt-2 text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{{ trans('about.tech_title') }}</h2>
+        <section id="tech" class="mt-16 scroll-mt-24">
+            <h2 class="text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{{ trans('about.tech_title') }}</h2>
             <p class="mt-3 max-w-3xl text-sm leading-7 text-slate-600">{{ trans('about.tech_description') }}</p>
 
             <ul class="mt-6 flex flex-wrap gap-2.5">
@@ -103,13 +91,14 @@
         </section>
 
         <section id="team" class="mt-16 scroll-mt-24">
-            <p class="text-xs font-semibold tracking-[0.16em] text-sky-700 uppercase">{{ trans('about.team_title') }}</p>
-            <h2 class="mt-2 text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{{ trans('about.team_title') }}</h2>
+            <h2 class="text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{{ trans('about.team_title') }}</h2>
+            <p class="mt-3 max-w-3xl text-sm leading-7 text-slate-600">{{ trans('about.team_intro') }}</p>
 
-            <div class="mt-6 grid gap-4 sm:grid-cols-2">
+            <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach ($team as $member)
                     @php
-                        $memberSlug = strtolower(str_replace(' ', '_', $member['name']));
+                        $memberSlug = $member['slug'] ?? strtolower(str_replace(' ', '_', $member['name']));
+                        $hasPhoto = ! empty($member['photo']) && is_file(public_path($member['photo']));
                     @endphp
 
                     <article @class([
@@ -118,10 +107,20 @@
                         'border-slate-200' => empty($member['lead']),
                     ])>
                         <div class="flex items-start gap-4">
-                            @if (! empty($member['photo']))
-                                <img src="{{ asset($member['photo']) }}" alt="{{ $member['name'] }}" class="h-14 w-14 rounded-2xl object-cover">
+                            @if ($hasPhoto)
+                                <div class="relative h-20 w-20 shrink-0">
+                                    <img
+                                        src="{{ asset($member['photo']) }}"
+                                        alt="{{ $member['name'] }}"
+                                        class="h-20 w-20 rounded-full object-cover"
+                                        onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden'); this.nextElementSibling.classList.add('flex');"
+                                    >
+                                    <span class="hidden h-20 w-20 items-center justify-center rounded-full bg-sky-600 text-lg font-bold text-white">
+                                        {{ $member['initials'] }}
+                                    </span>
+                                </div>
                             @else
-                                <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-sm font-bold text-white">
+                                <span class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-sky-600 text-lg font-bold text-white">
                                     {{ $member['initials'] }}
                                 </span>
                             @endif
@@ -130,7 +129,7 @@
                                 <div class="flex flex-wrap items-center gap-2">
                                     <h3 class="text-sm font-semibold text-ink-950">{{ $member['name'] }}</h3>
                                     @if (! empty($member['lead']))
-                                        <span class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-sky-700 uppercase">
+                                        <span class="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-amber-700 uppercase ring-1 ring-amber-200">
                                             {{ trans('about.team_lead_badge') }}
                                         </span>
                                     @endif
@@ -160,24 +159,23 @@
             </div>
         </section>
 
-        <section class="mt-16 overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-8 sm:p-10">
-            <h2 class="text-2xl font-semibold tracking-tight text-ink-950 sm:text-3xl">{{ trans('about.proof_title') }}</h2>
-            <div class="mt-4 space-y-3 text-sm leading-7 text-slate-600">
+        <section id="proof" class="mt-16 scroll-mt-24 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-[#1e3a5f] p-8 text-slate-200 shadow-xl sm:p-10">
+            <h2 class="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{{ trans('about.proof_title') }}</h2>
+            <div class="mt-4 space-y-3 text-sm leading-7 text-slate-300">
                 @foreach (trans('about.proof_text') as $paragraph)
                     <p>{{ $paragraph }}</p>
                 @endforeach
             </div>
 
-            <div class="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6">
-                <p class="text-sm font-medium text-slate-700">{{ trans('about.cta_note') }}</p>
+            <div class="mt-8">
                 @auth
-                    <a href="{{ route('dashboard') }}" class="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500">
+                    <a href="{{ route('dashboard') }}" class="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-600">
                         {{ __('triproof.nav.dashboard') }}
                         <x-icon name="arrow-right" class="h-4 w-4" />
                     </a>
                 @else
                     @if (Route::has('login'))
-                        <a href="{{ route('login') }}" class="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500">
+                        <a href="{{ route('login') }}" class="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-600">
                             {{ trans('about.cta_text') }}
                             <x-icon name="arrow-right" class="h-4 w-4" />
                         </a>

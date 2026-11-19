@@ -107,6 +107,17 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                     ],
                   ),
                 ),
+                if (records.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      key: const Key('clear_all_history_button'),
+                      onPressed: () => _confirmClearAll(context),
+                      icon: const Icon(Icons.delete_forever_rounded, size: 18),
+                      label: Text(s.clearAllHistory),
+                      style: TextButton.styleFrom(foregroundColor: AppTheme.alertRed),
+                    ),
+                  ),
                 Expanded(
                   child: records.isEmpty
                       ? _emptyState(s.noHistoryTitle, s.noHistorySubtitle)
@@ -196,6 +207,15 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                         fontSize: 14,
                         color: AppTheme.brandNavy,
                       ),
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('delete_history_item_button'),
+                    tooltip: s.deleteHistoryItem,
+                    onPressed: () => _confirmDelete(context, record),
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: 20,
                     ),
                   ),
                   Text(
@@ -314,6 +334,58 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
     }
   }
 
+  Future<void> _confirmDelete(BuildContext context, ScanRecord record) async {
+    final s = widget.viewModel.strings;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(s.confirmDeleteItem),
+        content: Text(record.outerSerial),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(s.cancelAction)),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(s.deleteAction, style: const TextStyle(color: AppTheme.alertRed)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await widget.viewModel.deleteScanRecord(record.syncUuid);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.historyDeleted)),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmClearAll(BuildContext context) async {
+    final s = widget.viewModel.strings;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(s.clearAllHistory),
+        content: Text(s.confirmClearAll),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(s.cancelAction)),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(s.deleteAction, style: const TextStyle(color: AppTheme.alertRed)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await widget.viewModel.clearScanHistory();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.historyCleared)),
+        );
+      }
+    }
+  }
+
   Future<void> _openDetailsSheet(
     BuildContext context,
     ScanRecord record,
@@ -343,20 +415,24 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-        child: VerificationResultCard(
-          result: syntheticResult,
-          language: widget.viewModel.language,
-          onTransferOwnership: () {
-            Navigator.of(context).pop();
-            TransferOwnershipSheet.show(
-              context,
-              record: record,
-              transferPayloadFuture:
-                  widget.viewModel.generateTransferOwnershipQr(record),
+            child: VerificationResultCard(
+              result: syntheticResult,
               language: widget.viewModel.language,
-            );
-          },
-        ),
+              onTransferOwnership: () {
+                Navigator.of(context).pop();
+                TransferOwnershipSheet.show(
+                  context,
+                  record: record,
+                  transferPayloadFuture:
+                      widget.viewModel.generateTransferOwnershipQr(record),
+                  language: widget.viewModel.language,
+                );
+              },
+              onDelete: () async {
+                Navigator.of(context).pop();
+                await _confirmDelete(context, record);
+              },
+            ),
       ),
     );
   }

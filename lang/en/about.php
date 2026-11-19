@@ -1,75 +1,79 @@
 <?php
 
 return [
+    'eyebrow' => 'TriProof AI',
     'title' => 'About TriProof AI',
-    'tagline' => 'Offline-first Ed25519 supply-chain authenticity, quota-locked serial signing, and bilingual compliance intelligence for global buyers and Bangladeshi factories.',
-    'team_title' => 'Built for Supply-Chain Trust',
+    'tagline' => 'Trust and authenticity for every unit, from factory to buyer.',
 
     'mission_title' => 'Our Mission',
-    'mission_intro' => 'Counterfeiting, outer-box swapping, and unreported ghost overproduction undermine trust between global apparel and consumer brands and the factories that manufacture their goods.',
-    'mission_intro_2' => 'TriProof AI eliminates reliance on expensive proprietary security foils or constant factory-floor internet connectivity by pairing standard thermal/A4 QR labels with mathematical Ed25519 signatures.',
-    'mission_intro_3' => 'From Dhaka and Chattogram packing lines to customs checkpoints and retail shelves, every unit is verifiable in under 50 milliseconds—even in Airplane Mode.',
-
+    'mission_intro' => 'TriProof AI exists to stop the counterfeit goods that erode trust between Bangladeshi factories and the global buyers who depend on the products they make. Every unit is signed with a cryptographic signature under a quota-locked purchase order, so authenticity stays provable at the point of sale even without a network connection. Our tools turn that single signature into a full trust story: offline verification, clone-scan detection, precision recalls, rework lineage, and compliance guidance in the buyer\'s language.',
     'mission_points' => [
-        'Prevent outer-box swapping and label cloning',
-        'Stop unreported ghost overproduction with row-locked PO quotas',
-        'Verify authenticity in <50ms with zero internet connection',
-        'Execute precision batch recalls instead of broad recalls',
-        'Reconstruct broken serial lineage during factory rework',
-        'Bridge compliance gaps with plain-Bangla supervisor guidance',
+        'Quota-locked serial issuance',
+        'Offline Ed25519 verification',
+        'Clone-scan detection',
+        'Precision batch recalls',
+        'Rework lineage',
+        'Bilingual compliance guidance',
     ],
 
     'how_title' => 'How It Works',
-    'how_intro' => 'A three-stage cryptographic lifecycle from purchase order issuance to consumer unboxing.',
-    'how_sign' => 'Step 01 • Quota-Locked Issuance',
-    'how_verify' => 'Step 02 • Offline & Cloud Check',
-    'how_audit' => 'Step 03 • Merkle & Recall Control',
+    'how_intro' => 'The product runs on three steps. Each step reuses the same signed unit, so trust is never rebuilt by hand.',
     'how_steps' => [
-        'Global buyers issue a quota-locked Purchase Order. HQ signs each unit’s outer serial with a private Ed25519 key to produce a paired inner seal signature and SHA-256 unit hash.',
-        'Factory QA, customs, and consumers scan paired O1/I1 labels offline in <50ms using on-device Vision AI, then auto-sync via store-and-forward cross-checking when online.',
-        'Every batch is anchored to a deterministic SHA-256 Merkle root, enabling instant clone alerts, rework lineage tracking, and surgical batch recalls.',
+        'sign' => [
+            'title' => 'Sign',
+            'body' => 'A purchase order locks the unit into a quota and the scanner attaches an Ed25519 signature that only that order can authorise.',
+        ],
+        'verify' => [
+            'title' => 'Verify',
+            'body' => 'Any buyer or auditor verifies the label instantly, online or offline, and the system flags clone scans in real time.',
+        ],
+        'audit' => [
+            'title' => 'Audit / Recall',
+            'body' => 'When a batch is suspect, TriProof runs a precision recall, reconstructs rework lineage, and issues bilingual compliance guidance in seconds.',
+        ],
     ],
 
-    'tech_title' => 'Technology Stack',
-    'tech_description' => 'Engineered for high-throughput factory floors, low-connectivity ports, and verifiable cryptographic audits.',
+    'tech_title' => 'Tech Stack',
+    'tech_description' => 'Everything below already lives in the repository. No experimental tools were added for this page.',
     'tech' => [
-        'Laravel 12 & PHP 8.4',
-        'Native Ed25519 (ext-sodium)',
-        'SHA-256 Merkle Trees',
-        'MySQL 8 / MariaDB',
-        'Flutter & On-Device ML Kit OCR',
-        'SQLCipher Encrypted Storage',
-        'Tailwind CSS 4 & Vite',
-        'Bilingual AI Compliance Engine (EN/BN)',
+        'Laravel 12',
+        'PHP sodium / Ed25519',
+        'MySQL & MariaDB',
+        'Tailwind CSS 4',
+        'Chart.js',
+        'Leaflet',
+        'Kotlin Android scanner',
+        'AI layer (OpenAI / Gemini, deterministic fallback)',
     ],
 
-    'member_role_lead_architect' => 'System Architecture & Cryptography',
-    'member_bio_lead_architect' => 'Designed the quota-locked Ed25519 signing protocol, Merkle root auditing, and end-to-end verification state machine.',
+    'team_title' => 'Meet the Team',
+    'team_intro' => 'A small, purpose-built team. Every card below is one of the five people who made the platform.',
+    'team_lead_badge' => 'Team Lead',
 
-    'member_role_cryptography_engineer' => 'Applied Security & Key Management',
-    'member_bio_cryptography_engineer' => 'Built detached signature verification, anti-clock-rollback protection, and the <50KB offline blacklist compression pipeline.',
+    'member_role_feroz_mahmud' => 'Team Lead',
+    'member_bio_feroz_mahmud' => 'Leads the build, owns the full stack, and keeps the API, verification and UI consistent across the product.',
 
-    'member_role_mobile_vision_engineer' => 'Offline Mobile & Computer Vision',
-    'member_bio_mobile_vision_engineer' => 'Developed the sub-50ms offline scanner, curved-label ML Kit OCR normalizer, and store-and-forward sync engine.',
+    'member_role_shafayet_al_hossain' => 'Full Stack Developer & Domain Expert',
+    'member_bio_shafayet_al_hossain' => 'Builds the core authenticity and verification flows and translates supply-chain domain needs into product features.',
 
-    'member_role_backend_systems_engineer' => 'API, Database & Print Exports',
-    'member_bio_backend_systems_engineer' => 'Engineered transactional batch generation, rework lineage reconstruction, and print-ready O1/I1 QR sticker sheets.',
+    'member_role_remon_islam' => 'AI & ML Engineer',
+    'member_bio_remon_islam' => 'Ships the AI layer using OpenAI-compatible / Gemini model access, with a deterministic fallback so guidance never fails.',
 
-    'member_role_compliance_product_lead' => 'Factory Operations & Bilingual UX',
-    'member_bio_compliance_product_lead' => 'Designed the English/Bangla floor workflows, precision recall controls, and actionable supervisor anomaly reports.',
+    'member_role_masrurul_hasan_maktum' => 'Developer & Tester',
+    'member_bio_masrurul_hasan_maktum' => 'Writes the day-to-day features and the tests that keep them reliable across the stack.',
 
-    'proof_title' => 'Built Together for Real Factory Floors',
+    'member_role_golam_rabbani' => 'DevOps Engineer',
+    'member_bio_golam_rabbani' => 'Owns deployment, CI/CD, server setup, and keeping the platform reliable in production.',
+
+    'proof_title' => 'Built Together',
     'proof_text' => [
-        'TriProof AI was built around the real operational constraints of export manufacturing: internet dead zones in warehouses, curved or smudged polybag labels, multi-shift packing lines, and factory teams who need clear Bangla guidance rather than cryptic error codes.',
-        'Every cryptographic check, offline cache, and audit trail is test-verified so buyers, inspectors, and end consumers can trust every label.',
+        'TriProof AI is not the work of a single person. It was designed, built, tested and shipped collaboratively by all five of us, across the frontend, the backend, the scanner app and the operations pipeline.',
+        'If a claim does not trace back to a signed unit, it does not ship. We hold ourselves to that same standard on the product as we do on the code.',
     ],
-
-    'cta_note' => 'Ready to verify a label or manage your factory purchase orders?',
-    'cta_text' => 'Sign In to Dashboard',
+    'cta_text' => 'Log in to the verifier',
 
     'nav_about' => 'About',
     'sign_in' => 'Sign in',
-    'team_lead_badge' => 'Team lead',
     'privacy_title' => 'Privacy',
     'privacy_description' => 'How TriProof AI handles operational and account data.',
     'privacy_body' => [

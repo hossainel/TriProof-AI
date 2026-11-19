@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\WellKnownController;
+use App\Http\Controllers\Web\AdminDirectoryController;
 use App\Http\Controllers\Web\AiController as WebAiController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\DashboardController;
@@ -62,5 +63,23 @@ Route::middleware('auth')->group(function () {
         Route::post('/orders/{po}/pack', [OrderController::class, 'pack'])->name('orders.pack');
         Route::post('/rework', [OrderController::class, 'rework'])->name('rework.reconcile');
         Route::get('/rework/template', [OrderController::class, 'reworkTemplate'])->name('rework.template');
+    });
+
+    Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
+        Route::get('/manage', [AdminDirectoryController::class, 'index'])->name('manage');
+
+        Route::post('/buyers', [AdminDirectoryController::class, 'storeBuyer'])->name('buyers.store');
+        Route::put('/buyers/{user}', [AdminDirectoryController::class, 'updateBuyer'])->name('buyers.update');
+        Route::delete('/buyers/{user}', [AdminDirectoryController::class, 'destroyBuyer'])->name('buyers.destroy');
+
+        Route::post('/factories', [AdminDirectoryController::class, 'storeFactory'])->name('factories.store');
+        Route::put('/factories/{factory}', [AdminDirectoryController::class, 'updateFactory'])->name('factories.update');
+        Route::delete('/factories/{factory}', [AdminDirectoryController::class, 'destroyFactory'])->name('factories.destroy');
+
+        Route::post('/operators', [AdminDirectoryController::class, 'storeOperator'])->name('operators.store');
+        Route::put('/operators/{user}', [AdminDirectoryController::class, 'updateOperator'])->name('operators.update');
+        Route::delete('/operators/{user}', [AdminDirectoryController::class, 'destroyOperator'])->name('operators.destroy');
+
+        Route::put('/settings', [AdminDirectoryController::class, 'updateSettings'])->name('settings.update');
     });
 });
