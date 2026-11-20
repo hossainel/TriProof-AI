@@ -1,0 +1,118 @@
+Act as a Principal Full-Stack Architect, Applied Cryptography Engineer, Laravel 12 Specialist, Tailwind CSS 4 / Vanilla JS Engineer, Flutter Mobile Architect, and DevOps Engineer. Build and verify the entire **TriProof AI** ("Signed at source. Verified everywhere.") supply-chain integrity and anti-counterfeiting platform end-to-end in this repository.
+
+================================================================================
+1. PLATFORM OVERVIEW & TECHNOLOGY STACK
+================================================================================
+Build an integrated three-tier platform serving Global Buyers, Factory QA Operators, System Administrators, Station Verifiers, and End Consumers:
+- **Backend & Web Console:** Laravel 12, PHP 8.2+ (validated on 8.4), Eloquent ORM, FormRequests, Policies, server-rendered Blade views (no SPA), Tailwind CSS 4, Vite 7, Vanilla JS, Chart.js, and Leaflet.
+- **Database:** MySQL 8+ / MariaDB 10.6+ (`utf8mb4`), migrations as source of truth, mirrored in `schema.sql`. Enable `DB::prohibitDestructiveCommands()` and forced HTTPS in production.
+- **Cryptography:** Ed25519 detached signatures via `paragonie/sodium_compat` (using native `ext-sodium` when available), SHA-256 binary Merkle trees (`0x01` domain separation, odd-node promotion), and HS256 JWT (`firebase/php-jwt`) with JTI revocation.
+- **Exports & QR:** `dompdf/dompdf` (PDF manifests & thermal/A4 QR sticker sheets), `chillerlan/php-qrcode`, and streamed CSV exports.
+- **Bilingual AI & Localization:** Full English (`EN`) and Bangla (`বাংলা`) UI (`SetLocale` middleware + session preference) and deterministic bilingual anomaly/compliance engine (`AiClient` supporting OpenAI-compatible and Gemini APIs with automatic deterministic bilingual fallback).
+- **Mobile Verifier (`mobile/`):** Flutter 3.50+, Dart 3.12+, SQLCipher (`sqflite_sqlcipher`), `flutter_secure_storage`, Google ML Kit barcode/OCR, `geolocator`, and `connectivity_plus`.
+- **Deployment & CI/CD:** Zero-SSH cPanel web installer (`public/cpanel-setup.php`), `triproof-cpanel-deploy.zip` web packager, and GitHub Actions CI workflows for both Laravel and Flutter (`working-directory: mobile`).
+
+================================================================================
+2. COMPLETE 14-TABLE DATABASE SCHEMA (`database/migrations/` & `schema.sql`)
+================================================================================
+Create migrations and mirror DDL in `schema.sql` for all 14 domain tables plus Laravel infrastructure (`sessions`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`):
+1. `users`: `id`, `name`, `email` (unique), `password_hash`, `role` (`global_buyer`, `factory_qa`, `admin`), `language_pref` (`en`, `bn`), nullable `factory_id` (indexed).
+2. `factories`: `id`, `code` (unique, e.g. `DHK04`, `BD01`), `name_en`, `name_bn`, `location`, `contact_email`, `is_active` (boolean).
+3. `purchase_orders`: `id`, `po_number` (unique), `buyer_id` (FK -> `users`), `factory_id` (string code), `authorized_quota`, `generated_count`, `factory_expiry_days`, `retail_expiry_days`, `merkle_root_hash`, `dpp_metadata` (JSON), `dpp_digest`.
+4. `serial_registry`: `id`, `po_id` (FK), `outer_serial` (unique), `inner_serial` (text), `unit_hash` (unique), `factory_id`, `machine_id`, `batch_id`, `unit_number`, `production_date`, `expiry_date`, `status` (`generated`, `packed`, `verified`, `cloned`, `recalled`), `claimed_device_token`, `claimed_at`, `claimed_lat`, `claimed_lng`, `rework_parent_serial`, composite indexes on `(factory_id, machine_id, batch_id)` and `(po_id, status)`.
+5. `scan_logs`: append-only ledger with unique `sync_uuid`, `outer_serial`, `verdict`, `is_offline`, `device_token`, `scan_seq`, `lat`, `lng`, `scanned_at`, composite index on `(outer_serial, scanned_at)`.
+6. `notifications`: bilingual device inbox (`device_token`, `severity` [`info`, `warning`, `critical_clone`, `recall_alert`], `title_en`, `title_bn`, `body_en`, `body_bn`, `is_read`, composite index on `(device_token, is_read, created_at)`).
+7. `ai_anomaly_reports`: `po_id`, `factory_id`, `machine_id`, `batch_id`, `anomaly_type` (`clone_cluster`, `ghost_production`, `rework_gap`, `defect_cluster`), `severity`, `summary_en`, `summary_bn`, `action_en`, `action_bn`, `affected_units` (JSON), `is_ai_generated`.
+8. `recall_events`: `po_id`, `factory_id`, `machine_id`, `batch_id`, `affected_count`, `reason`, `triggered_by` (FK -> `users`).
+9. `system_settings`: `key` (unique), `value` (text) for platform metadata, default expiry windows, and compliance notices.
+10. `signing_keys`: `key_version` (unique, e.g. `K00`, `K01`), `public_key`, `encrypted_private_key` (Laravel `Crypt`), `status` (`active`, `verify_only`, `revoked`), nullable `buyer_id` (FK -> `users`).
+11. `carton_aggregations`: `carton_serial` (unique), `po_id`, `factory_id`, `batch_id`, `unit_count`, `merkle_root`, `signature`, `status`.
+12. `carton_units`: `carton_id` (FK), `serial_id` (unique FK -> `serial_registry`), `leaf_index`.
+13. `blockchain_anchors`: `anchor_date` (unique), `batch_merkle_root`, `po_ids` (JSON), `provider`, `receipt_signature`, `status`.
+14. `device_attestations`: `device_token` (PK), `public_key`, `integrity_verdict`, `last_scan_seq`.
+
+Seed default active factories (`DHK04`, `BD01`, `BD02`, `BD03`) via `FactorySeeder` (and auto-backfill any distinct `factory_id` from `users`/`purchase_orders`), plus production/local admin bootstrap (`ADMIN_EMAIL` / `ADMIN_PASSWORD`).
+
+================================================================================
+3. CRYPTOGRAPHIC ENGINE, QUOTA-LOCKED SIGNING & QR NORMALIZATION
+================================================================================
+1. **Key Ring & Discovery (`MasterKeyService`):**
+   - Resolve active signing key from `signing_keys` (preferring buyer-specific active key, falling back to global active key, and legacy `K00` from `.env` `HQ_PRIVATE_SIGNING_KEY` / `UNIVERSAL_PUBLIC_VERIFICATION_KEY`).
+   - Validate keypairs via `sodium_crypto_sign_publickey_from_secretkey` + `hash_equals`.
+   - CLI commands: `php artisan triproof:keys --write`, `php artisan triproof:keys:rotate --key-version=K02 [--buyer=ID]`, and scheduled `php artisan triproof:anchor-merkle` (daily at 01:30).
+   - `GET /.well-known/triproof-key.json` (with open CORS headers): ALWAYS publish the active `K00` public key from `.env` even when `signing_keys` is empty, alongside all `active` and `verify_only` keys from `signing_keys`, SHA-256 fingerprints, and key rotation policy.
+2. **Canonical Serial Contract (`SerialCryptoService`):**
+   - Legacy `K00`: `{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{PROD_DATE}|{EXP_DATE}`
+   - Enterprise V2: `{KNN}-{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{PROD_DATE}|{EXP_DATE}|DPP:{8-HEX-DIGEST}`
+   - `inner_serial = Base64(Ed25519_detached_sign(outer_serial))`
+   - `unit_hash = SHA256(outer_serial . "|" . inner_serial)`
+   - **Critical Payload Normalization (`normalizePayload`):** Strip `{APP_URL}/v/` wrapper from outer payloads and `TP1:` prefix from inner payloads, and **always run `rawurldecode()`** on extracted path segments so URL-encoded `%7C` pipes convert back to `|` *before* Ed25519 signature verification, `unit_hash` calculation, or database lookup.
+3. **6-Step Atomic Quota-Locked Signing (`BatchGenerationService`):**
+   - Begin DB transaction -> `SELECT ... FOR UPDATE` on `purchase_orders` -> reject if `count > authorized_quota - generated_count` -> allocate sequential unit numbers -> sign exact N serials -> recompute SHA-256 binary Merkle tree -> update `generated_count` and `merkle_root_hash` -> commit.
+4. **QR Sticker Sheets (`BatchExportService` & `resources/views/exports/qr-labels-pdf.blade.php`):**
+   - Render paired Outer QR (`{APP_URL}/v/{outer_serial}`, pair code `01`, Error Correction M) and Inner QR (`{inner_serial}`, pair code `11`, Error Correction Q) with unit hash preview and 100% actual-size thermal/A4 print instructions.
+
+================================================================================
+4. VERIFICATION STATE MACHINE, 50 KB OFFLINE PACKAGE & BILINGUAL AI
+================================================================================
+1. **Verification Engine (`VerificationService`):**
+   - Enforce idempotency via `sync_uuid`; validate attested device `scan_seq` monotonicity and signature `{syncUuid}|{scanSeq}|{outer}`.
+   - Lock serial row (`lockForUpdate()`), verify Ed25519 signature across active + `verify_only` keys and `unit_hash`, and evaluate strict verdict precedence:
+     `forged_signature` -> `recalled_batch` -> `expired` -> first claim `verified_clean` -> same-device `owner_repeat_ok` -> store checkout grace `store_grace_ok` (`<= 300s` & `<= 100m`) -> `clone_detected`.
+   - On `clone_detected`: mark serial cloned, notify both first and second devices in EN/BN, trigger optional `ALERT_WEBHOOK_URL`, and upsert an `ai_anomaly_reports` record.
+   - Web `/verify` and `GET /v/{payload}` perform read-only forensic/passport inspection without claiming device ownership.
+2. **Offline Blacklist & Bloom Filter (`OfflineBlacklistService`):**
+   - `GET /api/v1/offline-blacklist` and `GET /api/v1/blacklist/delta` return a gzip+Base64 JSON package capped at `50,000` bytes containing recalled batches, cloned serials, key ring, and a `240,000`-bit Bloom filter (`OFFLINE_BLOOM_MAX_BITS=240000`, targeting 30,000 entries as a probable-match warning before exact SQLite lookup).
+3. **Bilingual AI & Containment (`AnomalyAnalysisService`, `RecallService`, `ReworkService`):**
+   - Detect clone clusters, ghost production attempts, rework lineage gaps, and defect clusters with actionable English and Bangla floor instructions.
+   - `RecallService`: surgical `Factory + Machine + Batch` recall updating serial statuses, logging `recall_events`, and pushing `recall_alert` notifications to affected devices.
+   - `ReworkService`: CSV/JSON parent-child serial reconciliation (`rework_parent_serial`).
+
+================================================================================
+5. ROLE-BASED WEB CONSOLE & HARDENED FRONTEND LIFECYCLE
+================================================================================
+1. **Administrator (`/admin/manage` & `/dashboard`):**
+   - Full Add / Edit / Remove CRUD for **Global Buyers**, **Factories** (with deletion guardrails blocking removal when referenced by POs, serials, or users), **Factory QA Operators**, and **Platform & Compliance Settings** (`system_settings`).
+   - Network KPIs, Chart.js unit-state analytics, Leaflet GPS risk geography, key ring status, and Merkle proof audit modal (`#merkle-dialog`).
+2. **Global Buyer:**
+   - Quota-locked PO creation (`Rule::exists('factories', 'code')->where('is_active', true)`), batch intelligence table, bilingual anomaly cards, precision recall modal (`#recall-dialog`), and CSV/PDF exports.
+3. **Factory QA:**
+   - Batch signing modal (`#generate-dialog` with live remaining quota), **Smart Packing Modal (`#pack-dialog`)** fed by `DashboardController::$packableSummary` JSON showing live remaining unpackaged unit counts, clickable batch quick-fill chips, `#min–#max` range suggestions, and a `"Use full range"` button (plus `PackingService` reporting available batch ranges when a request matches 0 units), QR sticker sheet exports, and rework reconciliation.
+4. **Hardened `<dialog class="tp-dialog">`, Sidebar & JS Architecture (`layouts/app.blade.php`, `resources/js/app.js`, `resources/css/app.css`):**
+   - Define a strict null-safe `byId(rawId)` helper in `resources/js/app.js` so empty strings are never passed to `document.getElementById()`.
+   - In `layouts/app.blade.php`, set `$openDialog = $errors->any() ? (old('dialog_id') ?: session('open_dialog')) : null;` and render `data-open-dialog` on `<body>` **only** when non-empty. Never hardcode `open` on any `<dialog>`.
+   - Every `<dialog class="tp-dialog">` must have `type="button" data-close-dialog` on all `×` and `Cancel` buttons, a single CSRF-protected `<form>` with a `type="submit"` Save button, `<input type="hidden" name="dialog_id" value="<exact-id>">`, `<input type="hidden" name="active_tab" value="<tab-id>">` on admin forms, and scoped `$isCurrentDialog = old('dialog_id') === '<exact-id>'` so validation errors and `old()` values never leak into sibling modals.
+   - Successful admin/order actions redirect `back()->with('status', ...)->with('active_tab', ...)` **without** `->withInput()` so modals stay closed on save.
+   - CSS guarantees `dialog.tp-dialog:not([open]) { display: none !important; }` and centered `dialog.tp-dialog[open]` with scrollable `.tp-dialog-panel`.
+
+================================================================================
+6. OFFLINE-FIRST FLUTTER MOBILE VERIFIER (`mobile/` — `tripoof_ai_scanner`)
+================================================================================
+1. **6-Step On-Device Verification Pipeline:**
+   - (1) Anti-clock-rollback high-water mark, (2) Smart-URL (`/v/...`), `KNN-`, and `|DPP:XXXXXXXX` parser with `Uri.decodeComponent()` (`%7C` -> `|`) and `TP1:` stripping *before* signature verification, (3) Pure-Dart Ed25519 verification in a background isolate against all synced keys + compile-time `UNIVERSAL_PUBLIC_KEY`, (4) Retail expiry & 45-day factory QA SLA check, (5) SQLCipher blacklist + 240K-bit Bloom filter warning check, (6) In-memory duplicate & prior-owner cache check.
+2. **SQLCipher Encrypted Storage & History Deletion (`DatabaseHelper` & `scan_history_screen.dart`):**
+   - Encrypted `tripoof_scanner_v1.db` (key in `flutter_secure_storage`) with tables `scan_history`, `cached_blacklist`, `notifications_inbox`, and `app_meta`.
+   - Implement individual scan deletion (`deleteScanRecord(syncUuid)`) and full history wipe (**Clear All History**, `clearScanHistory()`), both guarded by bilingual (`EN` / `বাংলা`) `AlertDialog` confirmations and immediately invalidating in-memory session-duplicate and prior-owner caches.
+3. **Website-to-App Offline Trust Sync (`TrustSyncService`):**
+   - Store `server_base_url`, `synced_key_ring_json`, and `last_trust_sync_at` in SQLCipher `app_meta`.
+   - Run automatically on app launch and `connectivity_plus` reconnect, plus provide a manual bilingual **"Website Sync & Offline Trust"** card (with editable Server Website URL input, active key fingerprint/timestamp status, and **"Update from Website"** button, plus a quick-sync button on failed offline scans) that fetches `GET {baseUrl}/.well-known/triproof-key.json` and `GET {baseUrl}/api/v1/blacklist/delta` so any installed APK verifies newly deployed servers and rotated keys offline without rebuilding.
+
+================================================================================
+7. DEPLOYMENT, CI/CD, DOCUMENTATION & TEAM CREDITS
+================================================================================
+1. **Zero-SSH cPanel Deployment (`public/cpanel-setup.php`):**
+   - Self-cleaning web installer that validates PHP 8.4 and extensions, creates writable `storage/` and `bootstrap/cache/` paths, generates `APP_KEY`, `JWT_SECRET`, and Ed25519 keys, locks `.env`, runs `migrate --force` and `db:seed --force`, and deletes itself.
+   - Provide clean packaging for `triproof-cpanel-deploy.zip` (including `public/build/` and `vendor/`, excluding `mobile/`, `node_modules/`, `.git/`, `.env`, and `*.apk`).
+2. **GitHub Actions CI (`.github/workflows/ci.yml`):**
+   - Configure a Laravel job (`php artisan test`, `vendor/bin/pint --test`, `npm run build`) and a Flutter job (`working-directory: mobile`, `flutter pub get`, `flutter analyze --no-fatal-infos`, `flutter test`, `flutter build apk --debug`). Never reference a non-existent root `android/` directory.
+3. **Documentation & Team Credits (`config/team.php`, `/about`, `.md` files):**
+   - Synchronize `README.md`, `ARCHITECTURE.md`, `CHECKPOINT.md`, `docs/API.md`, and `mobile/README.md` with zero real secrets/passwords.
+   - Credit the project team in `config/team.php`, `resources/views/about.blade.php`, and docs:
+     - **Feroz Mahmud** — Team Lead
+     - **Shafayet Al Hossain** — Full Stack Developer & Domain Expert
+     - **Remon Islam** — AI & ML Engineer
+     - **Masrurul Hasan Maktum** — Developer & Tester
+     - **Golam Rabbani** — DevOps Engineer
+4. **Final Verification Gates:**
+   - Write and run comprehensive PHPUnit tests (`AllModalsVerificationTest`, `AdminDirectoryManagementTest`, `QrStickerTest`, `WellKnownKeyTest`) and Flutter tests (`crypto_and_verification_test.dart`, `trust_sync_test.dart`, `scan_history_test.dart`).
+   - Run `npm run build`, `php artisan view:clear && php artisan view:cache`, `vendor/bin/pint --test`, `php artisan test`, and `cd mobile && flutter analyze --no-fatal-infos && flutter test` until 100% pass with zero errors.
