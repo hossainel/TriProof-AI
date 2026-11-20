@@ -104,7 +104,7 @@ void main() {
           't.focusautomobiles.com/api/v1/',
         );
         expect(normalized, 'https://t.focusautomobiles.com');
-        expect(await service.getServerBaseUrl(), 'http://triproof.local');
+        expect(await service.getServerBaseUrl(), 'https://t.focusautomobiles.com');
 
         final result = await service.syncFromWebsite(
           overrideBaseUrl: 't.focusautomobiles.com',

@@ -2,7 +2,7 @@
 
 **Enterprise Supply-Chain Integrity & Anti-Counterfeiting Platform**
 
-**Current release: v2.1** — dynamic website trust sync, hardened QR normalization, verified offline keys, a read-only MCP server, contextual/graph RAG, provenance analytics, and air-gapped bilingual AI.
+**Current release: v2.1.1** — dynamic website trust sync, hardened QR normalization, verified offline keys, a read-only MCP server, contextual/graph RAG, provenance analytics, and air-gapped bilingual AI.
 
 TriProof AI protects high-risk consumer supply chains with quota-locked purchase orders, Ed25519-signed unit labels, offline-first verification, deterministic bilingual anomaly detection, precision recalls, rework lineage, and auditable Merkle roots. The platform serves global buyers, Bangladeshi factories, administrators, station verifiers, and end consumers across a Laravel web console, a versioned JSON API, and a Flutter mobile verifier.
 

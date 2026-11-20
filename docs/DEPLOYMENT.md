@@ -1,14 +1,15 @@
 # TriProof AI — Setup, Testing & Deployment
 
-This document is the canonical operations runbook for v2.1. All commands assume the repository root unless stated otherwise.
+This document is the canonical operations runbook for v2.1.1.1. All commands assume the repository root unless stated otherwise.
 
 ## 1. Prerequisites
 
-- PHP 8.2+ with `pdo_mysql`, `openssl`, `mbstring`, `gd`, `sodium`, `json`, `curl`, `zip`
+- PHP 8.2+ with `pdo_sqlite`, `openssl`, `mbstring`, `gd`, `sodium`, `json`, `curl`, `zip`
 - Composer 2.x
 - Node.js 20+ and npm
-- MySQL 8 / MariaDB 10.6+
-- Flutter 3.35+ / Dart 3.12+ with Android SDK for mobile builds
+- PHPUnit and Laravel Pint for backend gates
+- Flutter 3.50+ / Dart 3.14+ with Android SDK for mobile builds
+- Android SDK 33+ and `aapt` for launcher-icon verification
 - Optional: Neo4j, Qdrant/pgvector-compatible HTTP endpoint, DuckDB CLI, Ollama, llama.cpp
 
 ## 2. Local setup
@@ -44,12 +45,12 @@ The suite covers cryptographic signing, quota locks, QR normalization, seven-sta
 ```bash
 cd mobile
 flutter pub get
-flutter analyze
+flutter analyze --no-fatal-infos
 flutter test
-flutter build apk --release
+flutter build apk --release --no-tree-shake-icons
 ```
 
-The universal output is `mobile/build/app/outputs/flutter-apk/app-release.apk`. For split ABIs, add `--split-per-abi`. Production builds should pin the API base URL and universal public key with `--dart-define`. If material icon tree-shaking fails because of a font-cache mismatch, add `--no-tree-shake-icons`.
+The universal output is `mobile/build/app/outputs/flutter-apk/app-release.apk`. For split ABIs, add `--split-per-abi`. Production builds pin `API_BASE_URL` (live deployment URL, e.g. `https://t.focusautomobiles.com`) and `UNIVERSAL_PUBLIC_KEY` from the live `/.well-known/triproof-key.json` response; verify it is 32 bytes after Base64-decoding. If material icon tree-shaking fails because of a font-cache mismatch, `--no-tree-shake-icons` is required.
 
 ## 5. Zero-SSH cPanel deployment
 

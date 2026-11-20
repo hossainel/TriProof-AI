@@ -20,7 +20,7 @@ class SerialCryptoService
 
     private const LEGACY_PATTERN = '/^([A-Z0-9][A-Z0-9-]{1,15})-([A-Z0-9][A-Z0-9-]{0,15})-([A-Z0-9][A-Z0-9-]{0,15})-(\d{6})\|'.self::DATE_PATTERN.'\|'.self::DATE_PATTERN.'$/';
 
-    private const VERSIONED_PATTERN = '/^(K\d{2})-([A-Z0-9][A-Z0-9-]{1,15})-([A-Z0-9][A-Z0-9-]{0,15})-([A-Z0-9][A-Z0-9-]{0,15})-(\d{6})\|'.self::DATE_PATTERN.'\|'.self::DATE_PATTERN.'\|DPP:([A-F0-9]{8})$/';
+    private const VERSIONED_PATTERN = '/^(K\d{2})-([A-Z0-9][A-Z0-9-]{1,15})-([A-Z0-9][A-Z0-9-]{0,15})-([A-Z0-9][A-Z0-9-]{0,15})-(\d{6})\|'.self::DATE_PATTERN.'\|'.self::DATE_PATTERN.'(?:\|DPP:([A-F0-9]{8}))?$/';
 
     public function __construct(private readonly MasterKeyService $keys) {}
 
@@ -143,7 +143,7 @@ class SerialCryptoService
                 'key_version' => $m[1],
                 'factory_id' => $m[2], 'machine_id' => $m[3], 'batch_id' => $m[4],
                 'unit_number' => (int) $m[5], 'prod_date' => $prod, 'exp_date' => $exp,
-                'dpp_digest' => $m[8],
+                'dpp_digest' => trim((string) ($m[8] ?? '')) !== '' ? trim((string) $m[8]) : null,
             ];
         }
 

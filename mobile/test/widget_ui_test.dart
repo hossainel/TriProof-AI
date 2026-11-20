@@ -20,7 +20,7 @@ class _NoOpTrustSyncService extends TrustSyncService {
 
   @override
   Future<TrustSnapshot> loadSnapshot() async => const TrustSnapshot(
-    baseUrl: 'http://triproof.local',
+    baseUrl: 'https://t.focusautomobiles.com',
     keys: [],
     lastSyncedAt: null,
   );
@@ -28,7 +28,7 @@ class _NoOpTrustSyncService extends TrustSyncService {
   @override
   Future<TrustSyncResult> syncFromWebsite({String? overrideBaseUrl}) async =>
       const TrustSyncResult(
-        baseUrl: 'http://triproof.local',
+        baseUrl: 'https://t.focusautomobiles.com',
         keys: [],
         lastSyncedAt: null,
         blacklistEntries: 0,

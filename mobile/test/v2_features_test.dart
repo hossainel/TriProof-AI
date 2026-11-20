@@ -19,7 +19,7 @@ import 'package:triproof_ai_scanner/domain/models/scan_record.dart';
 
 import 'test_fakes.dart';
 
-const _demoHsmSeedBase64 = 'ixPzGmiWcpKr66kmMRxcQfBG6acJB+WTlO3GrPXQur0=';
+const _demoHsmSeedBase64 = 'rbwO0tAUSJalUz7WXys5GHZzkbnVfcvDq1Uzu/nVINk=';
 
 ScanRecord _sampleRecord({int scanSeq = 0}) => ScanRecord(
   syncUuid: 'uuid-$scanSeq',
@@ -90,6 +90,30 @@ void main() {
       expect(parsed!.keyId, 'K00');
       expect(parsed.dppDigest, '');
       expect(parsed.isVersioned, isFalse);
+    });
+
+    test('accepts legacy YYYYMMDD and versioned serials without DPP', () {
+      final legacy = ParsedOuterSerial.tryParse(
+        'BD01-M04-B202601-000482|20260131|20270131',
+      );
+      expect(legacy, isNotNull);
+      expect(legacy!.prodDateIso, '20260131');
+      expect(legacy.expDateIso, '20270131');
+      expect(legacy.dppDigest, '');
+
+      final versionedNoDpp = ParsedOuterSerial.tryParse(
+        'K02-BD01-M04-B202601-000482|20260131|20270131',
+      );
+      expect(versionedNoDpp, isNotNull);
+      expect(versionedNoDpp!.keyId, 'K02');
+      expect(versionedNoDpp.dppDigest, '');
+    });
+
+    test('normalizes TP1| inner signature', () {
+      expect(
+        OcrSerialNormalizer.normalizeInnerSignature(' TP1|abc123 '),
+        'abc123',
+      );
     });
   });
 

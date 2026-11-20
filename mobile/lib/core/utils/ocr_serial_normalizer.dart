@@ -93,6 +93,9 @@ abstract final class OcrSerialNormalizer {
     if (cleaned.startsWith('TP1:')) {
       cleaned = cleaned.substring(4);
     }
+    if (cleaned.startsWith('TP1|')) {
+      cleaned = cleaned.substring(4);
+    }
     return cleaned;
   }
 

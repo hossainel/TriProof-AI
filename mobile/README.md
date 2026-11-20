@@ -1,4 +1,4 @@
-# TriProof AI Scanner (`tripoof_ai_scanner`) — v2.1
+# TriProof AI Scanner (`tripoof_ai_scanner`) — v2.1.1
 
 Offline-first Flutter verifier for **Android and iOS**, located in [`mobile/`](.) inside the TriProof AI monorepo. It verifies signed labels in Airplane Mode, stores encrypted audit history with SQLCipher, synchronizes keys/blacklist/scan data with any deployed TriProof website, and supports individual scan deletion plus full bilingual Clear History.
 
@@ -8,7 +8,7 @@ Related docs: [root README](../README.md) · [API reference](../docs/API.md) · 
 
 - **Offline Ed25519 verification:** pure-Dart verification of the detached Base64 signature over the exact canonical outer serial, using an embedded universal key or provisioned versioned key ring. Target latency is under 50 ms.
 - **Versioned key ring:** reads `KNN-` serial prefixes, `|DPP:XXXXXXXX` digests, smart `/v/...` URLs, and `/.well-known/triproof-key.json`; active and retired keys remain verifiable.
-- **Dynamic website trust sync (v2.1):** edit the server URL, sync keys and blacklist from any TriProof deployment, and keep working offline. Runs automatically at startup/online and manually from the **Update Offline Data from Website** card.
+- **Dynamic website trust sync (v2.1.1):** edit the server URL, sync keys and blacklist from any TriProof deployment, and keep working offline. Runs automatically at startup/online and manually from the **Update Offline Data from Website** card.
 - **Clock-rollback protection:** a persisted high-water mark advances with GPS time, verified scans, and server sync; stale device clocks are rejected.
 - **On-device vision:** ML Kit barcode scanning and text recognition repair curved or smudged labels; no cloud OCR is required.
 - **Encrypted local history:** SQLCipher database with `scan_history`, `cached_blacklist`, `notifications_inbox`, and `app_meta`. The 256-bit database key is generated with `Random.secure()` and stored in Android Keystore / iOS Keychain.
@@ -78,32 +78,33 @@ Run on a connected device or emulator:
 flutter run
 ```
 
-Build the v2.1 release APKs:
+Build the v2.1.1 release APKs:
 
 ```bash
-flutter build apk --release --split-per-abi \
-  --build-name=2.1.0 --build-number=1
+flutter build apk --release --split-per-abi --no-tree-shake-icons \
+  --build-name=2.1.1 --build-number=2 \
+  --dart-define=API_BASE_URL=https://t.focusautomobiles.com
 ```
 
-Build with explicit production configuration:
+Build with explicit production configuration (example uses live t.focusautomobiles.com):
 
 ```bash
-flutter build apk --release --split-per-abi \
-  --build-name=2.1.0 --build-number=1 \
-  --dart-define=API_BASE_URL=https://<YOUR_DOMAIN> \
-  --dart-define=UNIVERSAL_PUBLIC_KEY=<UNIVERSAL_PUBLIC_KEY> \
-  --dart-define=BUILD_EPOCH_MS=1763510400000
+flutter build apk --release --split-per-abi --no-tree-shake-icons \
+  --build-name=2.1.1 --build-number=2 \
+  --dart-define=API_BASE_URL=https://t.focusautomobiles.com \
+  --dart-define=UNIVERSAL_PUBLIC_KEY=fzJVLyOzjNkU5yO1nunqxJbizPggpPHek3Xctb654Pw= \
+  --dart-define=BUILD_EPOCH_MS=$(date +%s000)
 ```
 
 Artifacts are written to `build/app/outputs/flutter-apk/` as `app-arm64-v8a-release.apk`, `app-armeabi-v7a-release.apk`, and `app-x86_64-release.apk`.
 
 | Define | Default | Purpose |
 |---|---|---|
-| `API_BASE_URL` | `http://triproof.local` | Base URL for API and public endpoints |
-| `UNIVERSAL_PUBLIC_KEY` | embedded legacy `K00` key in `app_constants.dart` | Fallback public key before the key ring is provisioned |
+| `API_BASE_URL` | `https://t.focusautomobiles.com` | Base URL for API and public endpoints |
+| `UNIVERSAL_PUBLIC_KEY` | live legacy `K00` key in `app_constants.dart` | Fallback public key before the key ring is provisioned |
 | `BUILD_EPOCH_MS` | `0` | Floor for the clock high-water mark to reject stale builds |
 
-Use `--dart-define=UNIVERSAL_PUBLIC_KEY=<UNIVERSAL_PUBLIC_KEY>` with the deployed public key. The universal public key is not a secret, but it must match the signing backend. In v2.1 the installed app can also change its website URL and refresh the key ring at runtime, so the compile-time key is only the fallback.
+Use `--dart-define=UNIVERSAL_PUBLIC_KEY=<UNIVERSAL_PUBLIC_KEY>` with the deployed public key. The universal public key is not a secret, but it must match the signing backend. In v2.1.1 the installed app can also change its website URL and refresh the key ring at runtime, so the compile-time key is only the fallback.
 
 ## Offline verification pipeline
 
@@ -133,7 +134,7 @@ Cache mirrors: `_blacklistCache`, `_bloomFilterCache`, `_sessionSerialCache`, an
 - `clearScanHistory()` removes all `scan_history` rows and invalidates the same caches. The UI label is **Clear All History**.
 - Both actions are confirmed through bilingual `AlertDialog`s in `lib/ui/features/history/scan_history_screen.dart` (`confirmDeleteItem`, `confirmClearAll`, Cancel/Delete actions) and report success via localized snackbars.
 
-## Dynamic trust sync (v2.1)
+## Dynamic trust sync (v2.1.1)
 
 `TrustSyncService` normalizes the URL (adds `https://` when needed, removes trailing slashes and `/api/v1`), fetches the public key ring, and persists valid 32-byte Ed25519 keys in both SQLCipher and secure storage. It then fetches the blacklist delta, replaces exact cache entries, saves the Bloom filter, and records the server timestamp.
 
@@ -158,4 +159,4 @@ Full request/response contracts are in [docs/API.md](../docs/API.md).
 2. Use **Quick-Test Demo Simulator (Airplane Mode)** for genuine, repeat owner, expired, short-dated, swapped tag, duplicate box, recalled batch, and degraded OCR scenarios.
 3. Open the Alerts tab and run **Demo: Simulate Retroactive Clone/Recall Sync** to preview queue drain, SQLite status upgrade, OS notification, and bilingual warning banner.
 
-The v2.1 suite includes `test/trust_sync_test.dart` for key-ring parsing, URL normalization, SQLCipher persistence, and verification with a newly synced key, plus `test/trust_sync_widget_test.dart` for the bilingual sync card. Current package gates: **29 Flutter tests** and `flutter analyze --no-fatal-infos` with no errors or warnings.
+The v2.1.1 suite includes `test/trust_sync_test.dart` for key-ring parsing, URL normalization, SQLCipher persistence, and verification with a newly synced key, plus `test/trust_sync_widget_test.dart` for the bilingual sync card. Current package gates: **29 Flutter tests** and `flutter analyze --no-fatal-infos` with no errors or warnings.

@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\BatchExportService;
+use App\Services\Crypto\SerialCryptoService;
 use App\Services\VerificationService;
+use Carbon\CarbonImmutable;
 use chillerlan\QRCode\QRCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\TriProofFixtures;
@@ -171,5 +173,22 @@ class QrStickerTest extends TestCase
     {
         [$order, $buyer] = $this->makeOrder(5);
         $this->actingAs($buyer)->getJson(route('orders.qr-stickers', ['po' => $order]))->assertStatus(422);
+    }
+
+    public function test_pristine_legacy_yyyymmdd_direct_scan_is_authentic(): void
+    {
+        $crypto = app(SerialCryptoService::class);
+        $outer = $crypto->formatOuterSerial(
+            'BD01',
+            'M04',
+            'B202601',
+            1,
+            CarbonImmutable::parse('20260131'),
+            CarbonImmutable::parse('20270131')
+        );
+        $signature = $crypto->sign($outer);
+
+        $this->assertNotNull($crypto->parseOuterSerial($outer));
+        $this->assertTrue($crypto->verify($outer, $signature));
     }
 }

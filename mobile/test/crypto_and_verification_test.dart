@@ -113,6 +113,28 @@ void main() {
       expect(feedbackService.alertCount, 0);
     });
 
+    test('verifies pristine legacy YYYYMMDD serials through repository', () async {
+      final pair = await demoSimulator.generateScenario(
+        DemoScenario.genuineProduct,
+        referenceUtc: DateTime.utc(2026, 1, 31),
+        fixedOuterSerial: 'BD01-M04-B202601-000482|20260131|20270131',
+      );
+      final parsed = ParsedOuterSerial.tryParse(pair.outerSerialOrOcr);
+      expect(parsed, isNotNull);
+      expect(parsed!.prodDateIso, '20260131');
+      expect(parsed.expDateIso, '20270131');
+
+      final result = await repository.verifyOffline(
+        outerSerial: pair.outerSerialOrOcr,
+        innerSerial: pair.innerSerial,
+        mode: ScanMode.consumerUnboxing,
+        sessionId: 'LEGACY-YYYYMMDD',
+      );
+
+      expect(result.offlineStatus, OfflineStatus.genuineOffline);
+      expect(result.isEffectiveGenuine, isTrue);
+    });
+
     test(
       'normalizes a smart URL QR payload to the canonical signed serial and hash',
       () async {

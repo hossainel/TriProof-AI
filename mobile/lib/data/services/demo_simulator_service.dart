@@ -55,18 +55,17 @@ class DemoTagPair {
 ///
 /// NOTE: In production factory deployments, the private signing seed resides
 /// strictly inside the factory Hardware Security Module (HSM), never on client
-/// devices. This simulator seed matches `AppConstants.defaultUniversalPublicKeyBase64`
-/// solely for offline demo and QA testing.
+/// devices. This deterministic simulator pair is test-only and is provisioned
+/// into the local key ring solely for offline demo and QA testing.
 class DemoSimulatorService {
-  /// Deterministic 32-byte demo HSM seed matching
-  /// [AppConstants.defaultUniversalPublicKeyBase64].
+  /// Deterministic 32-byte test seed used by the offline demo simulator.
   static const String _demoHsmSeedBase64 =
-      'ixPzGmiWcpKr66kmMRxcQfBG6acJB+WTlO3GrPXQur0=';
+      'rbwO0tAUSJalUz7WXys5GHZzkbnVfcvDq1Uzu/nVINk=';
 
   /// Public key derived from [_demoHsmSeedBase64]. Used only by the offline
   /// demo simulator; production verification uses the server-provisioned ring.
   static const String demoPublicKeyBase64 =
-      'a4dFK0VuPZWbOIMTcz0ZWFt4JMBZkhN9pFcxuzeaji4=';
+      '53wO7zDcTFTwVE4Gj43WYrB7WmlJ5KzYvQXc2jPd+54=';
 
   final Ed25519 _ed25519 = DartEd25519(sha512: const DartSha512());
   int _unitSequence = 482;

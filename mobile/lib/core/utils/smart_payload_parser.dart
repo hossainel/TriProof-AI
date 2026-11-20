@@ -72,7 +72,7 @@ class MasterCartonPayload {
 /// master-carton QR payloads without ever altering the signed serial string.
 abstract final class SmartPayloadParser {
   static final RegExp _smartUrlPattern = RegExp(
-    r'^[a-z][a-z0-9+.\-]*://[^/]+/v/(.+)$',
+    r'^(?:[a-z][a-z0-9+.\-]*://[^/]+)?/v/(.+)$',
     caseSensitive: false,
     dotAll: true,
   );

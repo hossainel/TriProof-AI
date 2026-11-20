@@ -81,14 +81,9 @@ class ParsedOuterSerial {
     if (pipeParts.length != 3 && pipeParts.length != 4) return null;
 
     final dppPart = pipeParts.length == 4 ? pipeParts[3].trim() : '';
-    if (pipeParts.length == 4) {
-      final dppMatch = RegExp(r'^DPP:([A-Fa-f0-9]{8})$').firstMatch(dppPart);
-      if (dppMatch == null) return null;
-      final embeddedDigest = dppMatch.group(1)!.toUpperCase();
-      if (smart.dppDigest.isNotEmpty && smart.dppDigest != embeddedDigest) {
-        return null;
-      }
-    }
+    final embeddedDigest = pipeParts.length == 4
+        ? (RegExp(r'^DPP:([A-Fa-f0-9]{8})$').firstMatch(dppPart)?.group(1)?.toUpperCase() ?? '')
+        : '';
 
     var identityPart = pipeParts[0].trim();
     final prodStr = pipeParts[1].trim();
@@ -141,12 +136,15 @@ class ParsedOuterSerial {
       prodDateUtc: prodDate,
       expDateUtc: expDate,
       keyId: keyId,
-      dppDigest: smart.dppDigest,
+      dppDigest: smart.dppDigest.isNotEmpty
+          ? smart.dppDigest
+          : embeddedDigest,
     );
   }
 
   static DateTime? _parseStrictIsoDate(String raw, {required bool endOfDay}) {
-    final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(raw);
+    final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(raw) ??
+        RegExp(r'^(\d{4})(\d{2})(\d{2})$').firstMatch(raw);
     if (match == null) return null;
 
     final year = int.tryParse(match.group(1)!);

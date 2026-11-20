@@ -8,7 +8,7 @@ abstract final class AppConstants {
   /// or `--dart-define=UNIVERSAL_PUBLIC_KEY=<base64>`.
   static const String defaultUniversalPublicKeyBase64 = String.fromEnvironment(
     'UNIVERSAL_PUBLIC_KEY',
-    defaultValue: 'ImXhUWzqV+BrGs29mucsZGOsLV8CuMEA2BvgogWxEJQ=',
+    defaultValue:       'fzJVLyOzjNkU5yO1nunqxJbizPggpPHek3Xctb654Pw=',
   );
 
   /// Base URL for the TriProof Cloud Cross-Check & Recall API.
@@ -16,7 +16,7 @@ abstract final class AppConstants {
   /// Override at build time with `--dart-define=API_BASE_URL=https://...`.
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://triproof.local',
+    defaultValue:       'https://t.focusautomobiles.com',
   );
 
   /// Compile-time minimum build epoch (UTC milliseconds). The keystore's
