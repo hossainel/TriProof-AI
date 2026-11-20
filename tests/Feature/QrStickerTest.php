@@ -89,6 +89,59 @@ class QrStickerTest extends TestCase
         $this->assertSame('verified_clean', $result['verdict']);
     }
 
+    public function test_exact_qr_payloads_verify_through_web_and_api(): void
+    {
+        [$order, $buyer] = $this->makeOrder(6);
+        $this->generateSerials($order, $buyer, 1, 'M01', 'B01');
+        $serial = $order->serials()->firstOrFail();
+        $sticker = app(BatchExportService::class)->qrStickerViewData($order, 1)['serials'][0];
+
+        $decode = function (string $dataUri): string {
+            $png = base64_decode(substr($dataUri, strlen('data:image/png;base64,')), true);
+            $this->assertNotFalse($png);
+
+            return (new QRCode)->readFromBlob($png)->data;
+        };
+
+        $outerQr = $decode($sticker['outer_qr']);
+        $innerQr = $decode($sticker['inner_qr']);
+
+        $this->assertSame(rtrim((string) config('app.url'), '/').'/v/'.$serial->outer_serial, $outerQr);
+        $this->assertSame($serial->inner_serial, $innerQr);
+
+        $encodedOuterQr = str_replace('|', '%7C', $outerQr);
+        $wrappedInnerQr = 'TP1:'.$innerQr;
+
+        $web = $this->actingAs($buyer)->post(route('verify.check'), [
+            'outer_serial' => $encodedOuterQr,
+            'inner_serial' => $wrappedInnerQr,
+        ]);
+
+        $web->assertOk()->assertViewHas('result', function (array $result): bool {
+            return $result['verdict'] === 'verified_clean'
+                && $result['authentic'] === true
+                && $result['signature_valid'] === true
+                && $result['hash_matches'] === true;
+        });
+
+        $api = $this->actingAs($buyer)->postJson('/api/v1/verify/online-crosscheck', [
+            'logs' => [[
+                'sync_uuid' => 'qr-regression-sync-1',
+                'outer_serial' => $outerQr,
+                'inner_serial' => $wrappedInnerQr,
+                'device_token' => 'qr-regression-device',
+                'scan_mode' => 'online_live',
+                'scanned_at' => now()->toIso8601String(),
+            ]],
+        ]);
+
+        $api->assertOk()
+            ->assertJsonPath('data.results.0.verdict', 'verified_clean')
+            ->assertJsonPath('data.results.0.signature_valid', true)
+            ->assertJsonPath('data.results.0.registered', true)
+            ->assertJsonPath('data.results.0.duplicate', false);
+    }
+
     public function test_invalid_limits_are_rejected_and_all_pairs_can_be_printed(): void
     {
         [$order, $buyer] = $this->makeOrder(5);

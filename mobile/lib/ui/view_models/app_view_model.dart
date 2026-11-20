@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:triproof_ai_scanner/core/constants/app_constants.dart';
 import 'package:triproof_ai_scanner/core/l10n/app_strings.dart';
 import 'package:triproof_ai_scanner/data/repositories/sync_repository.dart';
 import 'package:triproof_ai_scanner/data/repositories/verification_repository.dart';
@@ -10,6 +12,7 @@ import 'package:triproof_ai_scanner/data/services/demo_simulator_service.dart';
 import 'package:triproof_ai_scanner/data/services/location_time_service.dart';
 import 'package:triproof_ai_scanner/data/services/notification_service.dart';
 import 'package:triproof_ai_scanner/data/services/secure_keystore_service.dart';
+import 'package:triproof_ai_scanner/data/services/trust_sync_service.dart';
 import 'package:triproof_ai_scanner/domain/enums/app_language.dart';
 import 'package:triproof_ai_scanner/domain/enums/scan_mode.dart';
 import 'package:triproof_ai_scanner/domain/models/app_notification.dart';
@@ -30,16 +33,23 @@ class AppViewModel extends ChangeNotifier {
     required NotificationService notificationService,
     LocationTimeService? locationTimeService,
     DemoSimulatorService? demoSimulatorService,
+    TrustSyncService? trustSyncService,
     Uuid? uuid,
-  })  : _keystoreService = keystoreService,
-        _cryptoService = cryptoService,
-        _databaseHelper = databaseHelper,
-        _verificationRepository = verificationRepository,
-        _syncRepository = syncRepository,
-        _notificationService = notificationService,
-        _locationTimeService = locationTimeService,
-        _demoSimulator = demoSimulatorService ?? DemoSimulatorService(),
-        _uuid = uuid ?? const Uuid();
+  }) : _keystoreService = keystoreService,
+       _cryptoService = cryptoService,
+       _databaseHelper = databaseHelper,
+       _verificationRepository = verificationRepository,
+       _syncRepository = syncRepository,
+       _notificationService = notificationService,
+       _locationTimeService = locationTimeService,
+       _demoSimulator = demoSimulatorService ?? DemoSimulatorService(),
+       _trustSyncService =
+           trustSyncService ??
+           TrustSyncService(
+             databaseHelper: databaseHelper,
+             keystoreService: keystoreService,
+           ),
+       _uuid = uuid ?? const Uuid();
 
   final SecureKeystoreService _keystoreService;
   final CryptoService _cryptoService;
@@ -49,6 +59,7 @@ class AppViewModel extends ChangeNotifier {
   final NotificationService _notificationService;
   final LocationTimeService? _locationTimeService;
   final DemoSimulatorService _demoSimulator;
+  final TrustSyncService _trustSyncService;
   final Uuid _uuid;
 
   StreamSubscription<bool>? _onlineSub;
@@ -59,6 +70,11 @@ class AppViewModel extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isOnline = false;
   bool _isSyncing = false;
+  bool _isTrustSyncing = false;
+  String _serverBaseUrl = AppConstants.apiBaseUrl;
+  DateTime? _lastTrustSyncAt;
+  int _trustedKeyCount = 0;
+  String? _trustSyncMessage;
   int _pendingSyncCount = 0;
   int _lastLatencyMs = 0;
   String _deviceToken = '';
@@ -92,6 +108,21 @@ class AppViewModel extends ChangeNotifier {
 
   /// Whether a store-and-forward cloud sync cycle is in flight.
   bool get isSyncing => _isSyncing;
+
+  /// Currently configured TriProof website base URL.
+  String get serverBaseUrl => _serverBaseUrl;
+
+  /// Last successful website trust sync timestamp.
+  DateTime? get lastTrustSyncAt => _lastTrustSyncAt;
+
+  /// Number of cached trusted public keys.
+  int get trustedKeyCount => _trustedKeyCount;
+
+  /// Whether a website trust sync is in flight.
+  bool get isTrustSyncing => _isTrustSyncing;
+
+  /// Latest localized trust sync feedback message.
+  String? get trustSyncMessage => _trustSyncMessage;
 
   /// Number of `pending_sync` rows waiting in local SQLite.
   int get pendingSyncCount => _pendingSyncCount;
@@ -149,6 +180,9 @@ class AppViewModel extends ChangeNotifier {
     _onlineSub = _syncRepository.onlineStream.listen((online) {
       _isOnline = online;
       notifyListeners();
+      if (online && _isInitialized) {
+        unawaited(refreshTrustFromWebsite(silent: true));
+      }
     });
 
     _syncSub = _syncRepository.syncOutcomes.listen((outcome) async {
@@ -161,14 +195,52 @@ class AppViewModel extends ChangeNotifier {
     });
 
     await _reloadDbCollections();
+    final trustSnapshot = await _trustSyncService.loadSnapshot();
+    _serverBaseUrl = trustSnapshot.baseUrl;
+    _trustedKeyCount = trustSnapshot.keys.length;
+    _lastTrustSyncAt = trustSnapshot.lastSyncedAt;
     _isInitialized = true;
     notifyListeners();
+
+    unawaited(refreshTrustFromWebsite(silent: true));
 
     // Defer OS permission prompts until UI has rendered.
     unawaited(_notificationService.initialize());
     if (_locationTimeService != null) {
       unawaited(_locationTimeService.refreshLocationAndClock());
     }
+  }
+
+  /// Fetches fresh public keys and blacklist data from the configured website.
+  Future<void> refreshTrustFromWebsite({
+    String? overrideBaseUrl,
+    bool silent = false,
+  }) async {
+    if (_isTrustSyncing) return;
+    _isTrustSyncing = true;
+    if (!silent) _trustSyncMessage = null;
+    notifyListeners();
+
+    try {
+      final result = await _trustSyncService.syncFromWebsite(
+        overrideBaseUrl: overrideBaseUrl,
+      );
+      _serverBaseUrl = result.baseUrl;
+      _trustedKeyCount = result.keys.length;
+      _lastTrustSyncAt = result.lastSyncedAt;
+      if (!silent) _trustSyncMessage = strings.trustSyncSuccess;
+    } catch (_) {
+      if (!silent) _trustSyncMessage = strings.trustSyncFailure;
+    } finally {
+      _isTrustSyncing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Persists a new website URL without an immediate fetch.
+  Future<void> setServerBaseUrl(String url) async {
+    _serverBaseUrl = await _trustSyncService.setServerBaseUrl(url);
+    notifyListeners();
   }
 
   /// Toggles between English and Bangla (`EN / বাংলা`).
@@ -205,6 +277,7 @@ class AppViewModel extends ChangeNotifier {
     required String outerSerial,
     required String innerSerial,
     bool forceActivePalletSession = false,
+    List<int>? overridePublicKeyBytes,
   }) async {
     final useSession =
         _scanMode == ScanMode.factoryPackingQa || forceActivePalletSession;
@@ -215,6 +288,7 @@ class AppViewModel extends ChangeNotifier {
       innerSerial: innerSerial,
       mode: _scanMode,
       sessionId: sessionId,
+      overridePublicKeyBytes: overridePublicKeyBytes,
     );
 
     if (useSession) {
@@ -252,6 +326,9 @@ class AppViewModel extends ChangeNotifier {
       outerSerial: pair.outerSerialOrOcr,
       innerSerial: pair.innerSerial,
       forceActivePalletSession: simulateDuplicateBoxCollision,
+      overridePublicKeyBytes: base64Decode(
+        DemoSimulatorService.demoPublicKeyBase64,
+      ),
     );
   }
 

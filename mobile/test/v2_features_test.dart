@@ -19,30 +19,29 @@ import 'package:triproof_ai_scanner/domain/models/scan_record.dart';
 
 import 'test_fakes.dart';
 
-const _demoHsmSeedBase64 =
-    'ixPzGmiWcpKr66kmMRxcQfBG6acJB+WTlO3GrPXQur0=';
+const _demoHsmSeedBase64 = 'ixPzGmiWcpKr66kmMRxcQfBG6acJB+WTlO3GrPXQur0=';
 
 ScanRecord _sampleRecord({int scanSeq = 0}) => ScanRecord(
-      syncUuid: 'uuid-$scanSeq',
-      outerSerial: 'BD01-M04-B202611-000482|2026-11-01|2028-11-01',
-      innerSerial: 'signature',
-      unitHash: 'unit-hash',
-      factoryId: 'BD01',
-      machineId: 'M04',
-      batchId: 'B202611',
-      prodDate: '2026-11-01',
-      expDate: '2028-11-01',
-      offlineStatus: OfflineStatus.genuineOffline,
-      cloudStatus: CloudStatus.pendingSync,
-      feedbackMessageEn: 'ok',
-      feedbackMessageBn: 'ok',
-      scannedAt: DateTime.utc(2026, 11, 18),
-      deviceToken: 'TPD-test',
-      scanMode: ScanMode.consumerUnboxing,
-      sessionId: '',
-      latencyMs: 2,
-      scanSeq: scanSeq,
-    );
+  syncUuid: 'uuid-$scanSeq',
+  outerSerial: 'BD01-M04-B202611-000482|2026-11-01|2028-11-01',
+  innerSerial: 'signature',
+  unitHash: 'unit-hash',
+  factoryId: 'BD01',
+  machineId: 'M04',
+  batchId: 'B202611',
+  prodDate: '2026-11-01',
+  expDate: '2028-11-01',
+  offlineStatus: OfflineStatus.genuineOffline,
+  cloudStatus: CloudStatus.pendingSync,
+  feedbackMessageEn: 'ok',
+  feedbackMessageBn: 'ok',
+  scannedAt: DateTime.utc(2026, 11, 18),
+  deviceToken: 'TPD-test',
+  scanMode: ScanMode.consumerUnboxing,
+  sessionId: '',
+  latencyMs: 2,
+  scanSeq: scanSeq,
+);
 
 void main() {
   group('Smart URL / key version / DPP parsing', () {
@@ -130,40 +129,42 @@ void main() {
       expect(BloomFilter.fromMap(const {'bits_b64': ''}).isValid, isFalse);
     });
 
-    test('bloom miss skips exact lookup; bloom hit still requires exact entry',
-        () async {
-      await dbHelper.upsertBlacklistEntries([
-        BlacklistEntry(
-          serialOrBatch: 'EXACT-ONLY-SERIAL',
-          reason: 'Recall',
-          updatedAt: DateTime.utc(2026, 11, 18),
-        ),
-      ]);
+    test(
+      'bloom miss skips exact lookup; bloom hit still requires exact entry',
+      () async {
+        await dbHelper.upsertBlacklistEntries([
+          BlacklistEntry(
+            serialOrBatch: 'EXACT-ONLY-SERIAL',
+            reason: 'Recall',
+            updatedAt: DateTime.utc(2026, 11, 18),
+          ),
+        ]);
 
-      await dbHelper.saveBloomFilter(
-        BloomFilter.build(['UNRELATED-SERIAL']).toMap(),
-      );
-      expect(
-        await dbHelper.findBlacklistMatch(
-          outerSerial: 'EXACT-ONLY-SERIAL',
-          batchId: '',
-        ),
-        isNull,
-      );
+        await dbHelper.saveBloomFilter(
+          BloomFilter.build(['UNRELATED-SERIAL']).toMap(),
+        );
+        expect(
+          await dbHelper.findBlacklistMatch(
+            outerSerial: 'EXACT-ONLY-SERIAL',
+            batchId: '',
+          ),
+          isNull,
+        );
 
-      await dbHelper.saveBloomFilter(
-        BloomFilter.build(['EXACT-ONLY-SERIAL']).toMap(),
-      );
-      expect(
-        await dbHelper.findBlacklistMatch(
-          outerSerial: 'EXACT-ONLY-SERIAL',
-          batchId: '',
-        ),
-        isNotNull,
-      );
+        await dbHelper.saveBloomFilter(
+          BloomFilter.build(['EXACT-ONLY-SERIAL']).toMap(),
+        );
+        expect(
+          await dbHelper.findBlacklistMatch(
+            outerSerial: 'EXACT-ONLY-SERIAL',
+            batchId: '',
+          ),
+          isNotNull,
+        );
 
-      expect(await dbHelper.loadBloomFilter(), isNotNull);
-    });
+        expect(await dbHelper.loadBloomFilter(), isNotNull);
+      },
+    );
   });
 
   group('Build epoch floor & monotonic scan sequence', () {
@@ -183,27 +184,32 @@ void main() {
 
       final hwm = await keystore.getHighWaterMark();
       expect(hwm, floor);
-      expect(await keystore.isClockRolledBack(DateTime.utc(2024, 6, 1)), isTrue);
+      expect(
+        await keystore.isClockRolledBack(DateTime.utc(2024, 6, 1)),
+        isTrue,
+      );
     });
 
-    test('nextScanSeq is monotonic and survives a fresh keystore instance',
-        () async {
-      final store = InMemorySecureStore();
-      final first = SecureKeystoreService(store: store);
-      expect(await first.lastScanSeq(), 0);
-      expect(await first.nextScanSeq(), 1);
-      expect(await first.nextScanSeq(), 2);
+    test(
+      'nextScanSeq is monotonic and survives a fresh keystore instance',
+      () async {
+        final store = InMemorySecureStore();
+        final first = SecureKeystoreService(store: store);
+        expect(await first.lastScanSeq(), 0);
+        expect(await first.nextScanSeq(), 1);
+        expect(await first.nextScanSeq(), 2);
 
-      final second = SecureKeystoreService(store: store);
-      expect(await second.lastScanSeq(), 2);
-      expect(await second.nextScanSeq(), 3);
+        final second = SecureKeystoreService(store: store);
+        expect(await second.lastScanSeq(), 2);
+        expect(await second.nextScanSeq(), 3);
 
-      final record = _sampleRecord(scanSeq: 7);
-      expect(record.toMap()['scan_seq'], 7);
-      expect(record.toCrossCheckJson()['scan_seq'], 7);
-      expect(ScanRecord.fromMap(record.toMap()).scanSeq, 7);
-      expect(record.copyWith(scanSeq: 9).scanSeq, 9);
-    });
+        final record = _sampleRecord(scanSeq: 7);
+        expect(record.toMap()['scan_seq'], 7);
+        expect(record.toCrossCheckJson()['scan_seq'], 7);
+        expect(ScanRecord.fromMap(record.toMap()).scanSeq, 7);
+        expect(record.copyWith(scanSeq: 9).scanSeq, 9);
+      },
+    );
   });
 
   group('Master carton offline verification', () {
@@ -219,6 +225,9 @@ void main() {
       store = InMemorySecureStore();
       keystore = SecureKeystoreService(store: store);
       await keystore.initialize(currentUtc: clock);
+      await keystore.upsertPublicKeyRing({
+        'K00': DemoSimulatorService.demoPublicKeyBase64,
+      });
       crypto = CryptoService(keystoreService: keystore);
       dbHelper = createInMemoryDatabaseHelper(keystore);
       await dbHelper.database;
@@ -254,77 +263,91 @@ void main() {
       return '$message|${base64Encode(signature.bytes)}';
     }
 
-    test('parses and verifies a genuine signed master carton QR payload',
-        () async {
-      final payload = await signedCartonPayload();
-      final carton = SmartPayloadParser.tryParseMasterCarton(payload);
-      expect(carton, isNotNull);
-      expect(carton!.cartonSerial, 'CTN-K00-BD01-B202611-0001');
-      expect(carton.merkleRoot, '9f86d081884c7d659a2feaa0c55ad015');
-      expect(carton.unitCount, 4);
-      expect(carton.keyId, 'K00');
-      expect(carton.signedMessage, payload.substring(0, payload.lastIndexOf('|')));
+    test(
+      'parses and verifies a genuine signed master carton QR payload',
+      () async {
+        final payload = await signedCartonPayload();
+        final carton = SmartPayloadParser.tryParseMasterCarton(payload);
+        expect(carton, isNotNull);
+        expect(carton!.cartonSerial, 'CTN-K00-BD01-B202611-0001');
+        expect(carton.merkleRoot, '9f86d081884c7d659a2feaa0c55ad015');
+        expect(carton.unitCount, 4);
+        expect(carton.keyId, 'K00');
+        expect(
+          carton.signedMessage,
+          payload.substring(0, payload.lastIndexOf('|')),
+        );
 
-      final outcome = await crypto.verifyMasterCarton(
-        carton,
-        await keystore.getPublicKeyRing(),
-      );
-      expect(outcome.isValid, isTrue);
-    });
+        final outcome = await crypto.verifyMasterCarton(
+          carton,
+          await keystore.getPublicKeyRing(),
+        );
+        expect(outcome.isValid, isTrue);
+      },
+    );
 
-    test('master carton branch persists genuine and mismatch verdicts', () async {
-      final genuinePayload = await signedCartonPayload();
-      final genuine = await repository.verifyOffline(
-        outerSerial: genuinePayload,
-        innerSerial: '',
-        mode: ScanMode.consumerUnboxing,
-      );
-      expect(genuine.offlineStatus, OfflineStatus.masterCartonGenuine);
-      expect(genuine.headlineEn, contains('MASTER CARTON'));
-      expect(genuine.messageBn, isNotEmpty);
-      expect(genuine.record.factoryId, 'BD01');
+    test(
+      'master carton branch persists genuine and mismatch verdicts',
+      () async {
+        final genuinePayload = await signedCartonPayload();
+        final genuine = await repository.verifyOffline(
+          outerSerial: genuinePayload,
+          innerSerial: '',
+          mode: ScanMode.consumerUnboxing,
+        );
+        expect(genuine.offlineStatus, OfflineStatus.masterCartonGenuine);
+        expect(genuine.headlineEn, contains('MASTER CARTON'));
+        expect(genuine.messageBn, isNotEmpty);
+        expect(genuine.record.factoryId, 'BD01');
 
-      final tampered = await signedCartonPayload(
-        root: 'deadbeefdeadbeefdeadbeefdeadbeef',
-        seedBase64: 'zzPzGmiWcpKr66kmMRxcQfBG6acJB+WTlO3GrPXQur0=',
-      );
-      final mismatch = await repository.verifyOffline(
-        outerSerial: tampered,
-        innerSerial: '',
-        mode: ScanMode.consumerUnboxing,
-      );
-      expect(mismatch.offlineStatus, OfflineStatus.masterCartonMismatch);
-      expect(mismatch.isEffectiveGenuine, isFalse);
+        final tampered = await signedCartonPayload(
+          root: 'deadbeefdeadbeefdeadbeefdeadbeef',
+          seedBase64: 'zzPzGmiWcpKr66kmMRxcQfBG6acJB+WTlO3GrPXQur0=',
+        );
+        final mismatch = await repository.verifyOffline(
+          outerSerial: tampered,
+          innerSerial: '',
+          mode: ScanMode.consumerUnboxing,
+        );
+        expect(mismatch.offlineStatus, OfflineStatus.masterCartonMismatch);
+        expect(mismatch.isEffectiveGenuine, isFalse);
 
-      final history = await dbHelper.getScanHistory();
-      expect(history.length, 2);
-      expect(history.first.scanSeq, 2);
-      expect(history.last.scanSeq, 1);
-    });
+        final history = await dbHelper.getScanHistory();
+        expect(history.length, 2);
+        expect(history.first.scanSeq, 2);
+        expect(history.last.scanSeq, 1);
+      },
+    );
 
-    test('verifyMasterCarton rejects malformed and tampered payloads', () async {
-      final payload = await signedCartonPayload();
-      final original = SmartPayloadParser.tryParseMasterCarton(payload)!;
-      final tampered = MasterCartonPayload(
-        cartonSerial: original.cartonSerial,
-        merkleRoot: '00000000000000000000000000000000',
-        unitCount: original.unitCount,
-        signature: original.signature,
-      );
-      expect((await crypto.verifyMasterCarton(tampered)).isValid, isFalse);
+    test(
+      'verifyMasterCarton rejects malformed and tampered payloads',
+      () async {
+        final payload = await signedCartonPayload();
+        final original = SmartPayloadParser.tryParseMasterCarton(payload)!;
+        final tampered = MasterCartonPayload(
+          cartonSerial: original.cartonSerial,
+          merkleRoot: '00000000000000000000000000000000',
+          unitCount: original.unitCount,
+          signature: original.signature,
+        );
+        expect((await crypto.verifyMasterCarton(tampered)).isValid, isFalse);
 
-      final badSignature = MasterCartonPayload(
-        cartonSerial: original.cartonSerial,
-        merkleRoot: original.merkleRoot,
-        unitCount: original.unitCount,
-        signature: 'not-a-signature',
-      );
-      expect((await crypto.verifyMasterCarton(badSignature)).isValid, isFalse);
-      expect(
-        SmartPayloadParser.tryParseMasterCarton('NOT-A-CARTON|root|4|sig'),
-        isNull,
-      );
-    });
+        final badSignature = MasterCartonPayload(
+          cartonSerial: original.cartonSerial,
+          merkleRoot: original.merkleRoot,
+          unitCount: original.unitCount,
+          signature: 'not-a-signature',
+        );
+        expect(
+          (await crypto.verifyMasterCarton(badSignature)).isValid,
+          isFalse,
+        );
+        expect(
+          SmartPayloadParser.tryParseMasterCarton('NOT-A-CARTON|root|4|sig'),
+          isNull,
+        );
+      },
+    );
 
     test('DPP mismatch is reported distinctly by verifyEd25519', () async {
       final signed = await DemoSimulatorService().generateScenario(

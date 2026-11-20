@@ -27,7 +27,7 @@ The design keeps signing authority centralized, verification portable, business 
 | Crypto | Ed25519 via native sodium or `paragonie/sodium_compat`; SHA-256; HS256 JWT via `firebase/php-jwt` |
 | Exports | Dompdf, `chillerlan/php-qrcode`, streamed CSV |
 | AI | OpenAI-compatible / Gemini HTTP clients with deterministic bilingual fallback |
-| Mobile | Flutter 3.50+, Dart 3.12+, SQLCipher, ML Kit, geolocator, connectivity_plus |
+| Mobile | Flutter 3.50+, Dart 3.12+, SQLCipher, ML Kit, geolocator, connectivity_plus, `package:http` dynamic trust sync |
 | Hosting | cPanel shared hosting or VPS; zero-SSH `public/cpanel-setup.php` installer |
 
 No SPA framework is used. Server-rendered Blade views share the same services as the JSON API.
@@ -106,6 +106,9 @@ public/cpanel-setup.php              # self-cleaning zero-SSH installer
 schema.sql
 docs/API.md
 mobile/                              # Flutter verifier
+  lib/data/services/trust_sync_service.dart  # website key ring + blacklist sync
+  lib/domain/models/trust_key.dart           # cached key-ring entry
+  lib/ui/core/widgets/website_sync_card.dart # bilingual URL + update UI
 ```
 
 ## 5. Data model
@@ -142,7 +145,9 @@ Indexes include unique `po_number`, `outer_serial`, `unit_hash`, `sync_uuid`, `c
 - Private material is encrypted with Laravel `Crypt`; key pairs are validated by deriving the public key and using `hash_equals`.
 - Legacy `K00` uses `HQ_PRIVATE_SIGNING_KEY` / `UNIVERSAL_PUBLIC_VERIFICATION_KEY`.
 - `php artisan triproof:keys --write` bootstraps keys and JWT secret; `triproof:keys:rotate --key-version=K02 [--buyer=ID]` retires old keys to `verify_only`.
-- Public metadata, fingerprints, rotation policy, and the key ring are published at `GET /.well-known/triproof-key.json`. Login and `/auth/me` return `key_ring` and `active_keys`; `verify_only_keys` are published by well-known.
+- Public metadata, fingerprints, rotation policy, and the key ring are published at `GET /.well-known/triproof-key.json`. The endpoint publishes top-level `public_key_base64`, `public_key`, and `universal_public_key` aliases plus `key_ring`, `active_keys`, and `verify_only_keys`.
+- When `signing_keys` is empty, the configured legacy `K00` key is published as `active`; once any DB-backed key is active, `K00` is published as `verify_only`. This keeps first-run mobile verification and later rotation both correct.
+- Login and `/auth/me` return `key_ring` and `active_keys`; `verify_only_keys` are published by well-known.
 
 ### Serial contract
 
@@ -179,6 +184,8 @@ Factories never hold the HQ private key. Expired factory windows create complian
 ### Offline package and Bloom filter
 
 Login and `GET /offline-blacklist` return a gzip+Base64 JSON package capped at 50,000 bytes. It contains recalled batches, cloned serials, the public key ring, and a binary Bloom filter targeting 30,000 entries. The configured bit cap is `OFFLINE_BLOOM_MAX_BITS=240000`; at 30,000 entries the measured false-positive rate is about 2%, not 0.1%. A Bloom hit is a probable-match warning only; exact cached blacklist lookup decides. `GET /blacklist/delta` returns incremental entries plus a separate `bloom_filter` object.
+
+The mobile `TrustSyncService` uses `GET /.well-known/triproof-key.json` and `GET /api/v1/blacklist/delta` to refresh trust material without a JWT. It persists the key ring in SQLCipher `app_meta` and provisions the same keys into secure storage; verification rebuilds candidates from all `active` and `verify_only` keys, then falls back to the compile-time `UNIVERSAL_PUBLIC_KEY`.
 
 ## 7. Web frontend architecture
 
@@ -244,18 +251,20 @@ The Flutter client lives in [`mobile/`](mobile/README.md). Its pipeline is:
 
 1. Clock-rollback guard using a persisted high-water mark advanced by GPS time, successful scans, and server sync.
 2. Smart-payload parsing for `/v/...` URLs, `KNN-` prefixes, and `|DPP:XXXXXXXX` suffixes.
-3. Pure-Dart Ed25519 verification in-isolate using the embedded universal key or provisioned key ring.
+3. Pure-Dart Ed25519 verification in-isolate, trying all persisted `active` / `verify_only` keys and then the embedded `UNIVERSAL_PUBLIC_KEY` fallback.
 4. Expiry and 45-day factory QA threshold checks.
 5. Cached blacklist and Bloom-filter warning path.
 6. Session duplicate and prior-owner cache checks.
 
-`DatabaseHelper` opens SQLCipher database `triproof_scanner_v1.db` (version 2) with a 256-bit key from `flutter_secure_storage`. Tables are `scan_history`, `cached_blacklist`, `notifications_inbox`, and `app_meta`. The in-memory mirrors are rebuilt on open and invalidated on writes.
+`DatabaseHelper` opens SQLCipher database `triproof_scanner_v1.db` (version 2) with a 256-bit key from `flutter_secure_storage`. Tables are `scan_history`, `cached_blacklist`, `notifications_inbox`, and `app_meta`. Trust metadata in `app_meta` uses `server_base_url`, `synced_key_ring_json`, and `last_trust_sync_at`. The in-memory mirrors are rebuilt on open and invalidated on writes.
 
 - `deleteScanRecord(syncUuid)` deletes one scan and invalidates `_sessionSerialCache` and `_priorOwnerScanCache`.
 - `clearScanHistory()` deletes every scan row and invalidates the same caches. The UI exposes this as **Clear All History**.
 - Both actions use bilingual `AlertDialog` confirmations in `scan_history_screen.dart`: Cancel/Delete, `confirmDeleteItem`, `confirmClearAll`, `historyDeleted`, and `historyCleared`.
 
-Connectivity transitions trigger store-and-forward sync: upload pending scans with `scan_seq`, provision the key ring, fetch notifications, blacklist deltas, Bloom filter, and advance the clock high-water mark from `server_time`.
+`TrustSyncService` auto-syncs on initialization and online transitions, and can be triggered manually from the bilingual **Update Offline Data from Website** card. It normalizes the entered URL, rejects empty/invalid key rings, persists keys plus blacklist/Bloom data, and records the server timestamp. Traffic is limited by a 10-second timeout and the 50 KB blacklist budget.
+
+Connectivity transitions also trigger store-and-forward sync: upload pending scans with `scan_seq`, provision the key ring, fetch notifications, blacklist deltas, Bloom filter, and advance the clock high-water mark from `server_time`.
 
 ## 12. Security controls
 
@@ -271,7 +280,7 @@ Connectivity transitions trigger store-and-forward sync: upload pending scans wi
 
 Zero-SSH cPanel workflow:
 
-1. Upload `triproof-cpanel-deploy.zip` (web app only; excludes `mobile/` and `node_modules/`).
+1. Upload `triproof-cpanel-deploy-v2.1.zip` (web app only; excludes `mobile/` and `node_modules/`).
 2. Extract into the web root or an app directory with `public/` as document root.
 3. Configure `.env` with placeholders for database credentials, domain, and public key.
 4. Make `storage/`, `storage/framework/*`, `bootstrap/cache/`, and `public/uploads/` writable.
@@ -288,3 +297,4 @@ VPS deployments run the equivalent Composer, npm, key, migration, seeder, and op
 - Notifications are written synchronously; queues are optional for scaling.
 - V2 is additive: legacy `K00` serials, the `logs` cross-check envelope, mobile endpoints, demo trust root, and English `O1/I1` sticker sheets remain compatible.
 - Key rotation, DPP digests, carton Merkle proofs, offline Bloom warnings, device attestation, local anchors, webhooks, and smart-URL passports extend V1 without breaking existing clients.
+- v2.1 adds runtime trust discovery for installable APKs: keys/blacklist can follow any deployed website without a rebuild, while the compile-time universal key remains the last-resort fallback. QR normalization accepts raw smart URLs and `TP1:`-prefixed inner payloads before signature verification.

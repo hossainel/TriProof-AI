@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-Enterprise V2 plus the operational web-console hardening are complete. V2 was introduced in commit `d719173`; the current milestone adds full admin directory CRUD, stable dialog lifecycle, scoped validation reopening, smart packing suggestions, synchronized documentation, and the Flutter history deletion workflow. This checkpoint tracks the milestone state, not a release tag.
+Enterprise V2, operational web-console hardening, and the **v2.1 dynamic trust-sync release** are complete. V2 was introduced in commit `d719173`; v2.1 adds editable website trust sync, automatic key-ring/blacklist refresh, hardened smart-URL/`TP1:` QR normalization, and verified offline verification keys. Earlier milestones delivered full admin directory CRUD, stable dialog lifecycle, scoped validation reopening, smart packing suggestions, synchronized documentation, and the Flutter history deletion workflow. This checkpoint tracks the milestone state, not a release tag.
 
 ## Delivered web features
 
@@ -13,25 +13,32 @@ Enterprise V2 plus the operational web-console hardening are complete. V2 was in
 - **Smart packing:** `#pack-dialog` consumes per-order JSON from `DashboardController::$packableSummary`, shows live remaining counts, batch chips, `#min–#max` suggestions, and a full-range shortcut. `PackingService` reports available batch ranges when a selected scope has no unpackaged units.
 - **Team page:** `config/team.php`, `resources/views/about.blade.php`, local assets, and both locales agree on Feroz Mahmud (Team Lead), Shafayet Al Hossain, Remon Islam, Masrurul Hasan Maktum, and Golam Rabbani.
 - **V2 core:** versioned key ring and rotation, DPP digests, carton Merkle proofs, offline Bloom warnings, device attestation and `scan_seq` replay protection, local Merkle anchor receipts, optional webhook alerts, and public `/v/{payload}` passports.
+- **v2.1 public trust contract:** `/.well-known/triproof-key.json` always publishes the configured legacy `K00` key even when `signing_keys` is empty, exposing `public_key_base64` / `public_key` / `universal_public_key` aliases, `key_ring`, `active_keys`, and `verify_only_keys`; public trust endpoints allow configured CORS origins without authentication.
+- **v2.1 QR hardening:** verification normalizes smart URLs and `TP1:`-prefixed inner payloads before comparing canonical outer serials; exact web/API QR payload regression coverage is in `tests/Feature/QrStickerTest.php`.
 
 ## Delivered mobile features
 
-- Offline Ed25519 verification in pure Dart with the embedded universal key and provisioned key ring
+- Offline Ed25519 verification in pure Dart across all cached `active` / `verify_only` keys, with the embedded universal key as fallback
+- **Dynamic trust sync (v2.1):** editable server URL, automatic sync on startup/online transition, manual **Update Offline Data from Website** card, key-ring + blacklist/Bloom persistence, and bilingual status feedback
+- Trust metadata persisted in SQLCipher `app_meta` (`server_base_url`, `synced_key_ring_json`, `last_trust_sync_at`) and keys provisioned into Android Keystore / iOS Keychain
 - SQLCipher `tripoof_scanner_v1.db` with `scan_history`, `cached_blacklist`, `notifications_inbox`, and `app_meta`
 - In-memory session-duplicate, prior-owner, blacklist, and Bloom mirrors synchronized with encrypted storage
 - Per-row scan deletion and full **Clear All History** with bilingual EN/বাংলা confirmation dialogs; `deleteScanRecord` and `clearScanHistory` invalidate caches
 - GPS evidence capture, anti-clock-rollback high-water mark, retroactive clone/recall alerts, and store-and-forward cloud sync
+- Smart URL / `TP1:` QR normalization, canonical outer serial + unit hash persistence, and demo key provisioning aligned with the live universal key
 - Flutter widget and service tests under `mobile/test/`; no native Android/JVM/Room suite exists in this repository
 
 ## Verification gates
 
-- Laravel: full PHPUnit suite passing with no warnings
+- Laravel: full PHPUnit suite passing — **118 tests, 1,006 assertions**, no warnings
 - Code style: `vendor/bin/pint --test` passing
-- Assets: `npm run build` passing; committed `public/build/manifest.json` refreshed
-- Blade: `php artisan view:clear && php artisan view:cache` passing
+- Assets: `npm run build` passing; committed `public/build/manifest.json` refreshed before packaging
+- Blade: `php artisan view:clear && php artisan view:cache` passing before packaging
 - Modal contract: `tests/Feature/AllModalsVerificationTest.php` verifies markup, triggers, close buttons, CSRF, exact `dialog_id`, admin `active_tab`, success round trips, error round trips, scoped `old()` values, and body auto-open guards for every modal
-- Flutter: `flutter analyze --no-fatal-infos` (no errors or warnings; remaining info-level lints) and `flutter test` passing for the verifier package
-- Release artifacts: Android APK and `triproof-cpanel-deploy.zip` regenerated from this milestone
+- Trust contract: `tests/Feature/ApiFlowTest.php` verifies public K00 discovery with an empty key table, response aliases, and unauthenticated CORS preflight
+- QR contract: `tests/Feature/QrStickerTest.php` verifies exact smart-URL and `TP1:` payloads through both web and API verification paths
+- Flutter: `flutter analyze --no-fatal-infos` (no errors or warnings; remaining info-level lints) and **29 tests** passing for the verifier package
+- Release artifacts: Android v2.1 APKs and `triproof-cpanel-deploy-v2.1.zip`, generated from this milestone; APK outputs remain `app-arm64-v8a-release.apk`, `app-armeabi-v7a-release.apk`, and `app-x86_64-release.apk`
 
 ## Bloom / offline-package constraint
 
@@ -39,7 +46,8 @@ The offline blacklist package remains below 50 KB. The configured Bloom cap is `
 
 ## Production follow-ups
 
-- Physical handset camera and latency acceptance for the release APK
+- Physical handset camera and latency acceptance for the v2.1 APK
+- Confirm a clean install syncs from `https://<YOUR_DOMAIN>` and retains the key ring/blacklist across restart and Airplane Mode
 - Secure release signing key and store upload credentials handled outside source control
 - Production HTTPS/public-key pin verification after cPanel setup
 - Real external anchor provider and `ALERT_WEBHOOK_URL` credentials if enabled

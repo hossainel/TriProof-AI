@@ -17,6 +17,7 @@ class VerificationResultCard extends StatelessWidget {
     required this.onTransferOwnership,
     this.onDelete,
     this.onScanNext,
+    this.onSyncTrust,
   });
 
   /// Verification result to render.
@@ -35,13 +36,18 @@ class VerificationResultCard extends StatelessWidget {
   /// Optional callback to launch another scan right away.
   final VoidCallback? onScanNext;
 
+  /// Optional callback to refresh keys/blacklist after a failed offline scan.
+  final VoidCallback? onSyncTrust;
+
   @override
   Widget build(BuildContext context) {
     final s = AppStrings(language);
-    final isRepeatOwner = result.offlineStatus == OfflineStatus.repeatOwner &&
+    final isRepeatOwner =
+        result.offlineStatus == OfflineStatus.repeatOwner &&
         !result.cloudStatus.isRetroactiveAlert;
     final isMasterCarton = result.offlineStatus.isMasterCarton;
-    final isGenuine = result.isEffectiveGenuine ||
+    final isGenuine =
+        result.isEffectiveGenuine ||
         result.offlineStatus == OfflineStatus.masterCartonGenuine;
 
     final Color accentColor;
@@ -62,17 +68,22 @@ class VerificationResultCard extends StatelessWidget {
       statusIcon = Icons.verified_rounded;
     }
 
-    final headline =
-        language == AppLanguage.bangla ? result.headlineBn : result.headlineEn;
-    final primaryMsg =
-        language == AppLanguage.bangla ? result.messageBn : result.messageEn;
-    final secondaryMsg =
-        language == AppLanguage.bangla ? result.messageEn : result.messageBn;
+    final headline = language == AppLanguage.bangla
+        ? result.headlineBn
+        : result.headlineEn;
+    final primaryMsg = language == AppLanguage.bangla
+        ? result.messageBn
+        : result.messageEn;
+    final secondaryMsg = language == AppLanguage.bangla
+        ? result.messageEn
+        : result.messageBn;
 
-    final factoryNames =
-        AppConstants.resolveFactoryName(result.record.factoryId);
-    final factoryDisplay =
-        language == AppLanguage.bangla ? factoryNames.bn : factoryNames.en;
+    final factoryNames = AppConstants.resolveFactoryName(
+      result.record.factoryId,
+    );
+    final factoryDisplay = language == AppLanguage.bangla
+        ? factoryNames.bn
+        : factoryNames.en;
 
     return Card(
       key: const Key('verification_result_card'),
@@ -115,10 +126,7 @@ class VerificationResultCard extends StatelessWidget {
                             s.offlineBadgeLabel(result.offlineStatus),
                             accentColor,
                           ),
-                          _badge(
-                            '${result.latencyMs}ms',
-                            AppTheme.brandNavy,
-                          ),
+                          _badge('${result.latencyMs}ms', AppTheme.brandNavy),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -142,9 +150,7 @@ class VerificationResultCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: accentColor.withValues(alpha: 0.35),
-                ),
+                border: Border.all(color: accentColor.withValues(alpha: 0.35)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,10 +197,7 @@ class VerificationResultCard extends StatelessWidget {
                         ),
                       ),
                       Expanded(
-                        child: _metaCol(
-                          s.batchIdLabel,
-                          result.record.batchId,
-                        ),
+                        child: _metaCol(s.batchIdLabel, result.record.batchId),
                       ),
                       Expanded(
                         child: _metaCol(
@@ -219,8 +222,8 @@ class VerificationResultCard extends StatelessWidget {
                           result.record.expDate,
                           highlightColor:
                               result.offlineStatus == OfflineStatus.expired
-                                  ? AppTheme.alertRed
-                                  : null,
+                              ? AppTheme.alertRed
+                              : null,
                         ),
                       ),
                       Expanded(
@@ -239,14 +242,24 @@ class VerificationResultCard extends StatelessWidget {
               FilledButton.icon(
                 key: const Key('transfer_ownership_qr_button'),
                 onPressed: onTransferOwnership,
-                style: FilledButton.styleFrom(
-                  backgroundColor: accentColor,
-                ),
+                style: FilledButton.styleFrom(backgroundColor: accentColor),
                 icon: const Icon(Icons.qr_code_2_rounded),
                 label: Text(s.transferOwnershipQr),
               ),
             if (onScanNext != null) ...[
               const SizedBox(height: 8),
+              if (!isGenuine && onSyncTrust != null) ...[
+                OutlinedButton.icon(
+                  key: const Key('sync_keys_from_website_button'),
+                  onPressed: onSyncTrust,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.brandNavy,
+                  ),
+                  icon: const Icon(Icons.cloud_sync_outlined, size: 18),
+                  label: Text(s.syncKeysFromWebsiteButton),
+                ),
+                const SizedBox(height: 8),
+              ],
               OutlinedButton.icon(
                 onPressed: onScanNext,
                 icon: const Icon(Icons.qr_code_scanner_rounded),

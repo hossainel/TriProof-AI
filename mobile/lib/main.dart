@@ -24,11 +24,15 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final keystoreService = SecureKeystoreService();
-  final cryptoService = CryptoService(keystoreService: keystoreService);
   final databaseHelper = DatabaseHelper(keystoreService: keystoreService);
+  final cryptoService = CryptoService(
+    keystoreService: keystoreService,
+    databaseHelper: databaseHelper,
+  );
   final feedbackService = DeviceFeedbackService();
-  final locationTimeService =
-      GeolocatorTimeService(keystoreService: keystoreService);
+  final locationTimeService = GeolocatorTimeService(
+    keystoreService: keystoreService,
+  );
   final notificationService = LocalPushNotificationService();
   final apiClient = HttpCloudApiClient();
 
@@ -60,12 +64,7 @@ Future<void> main() async {
 
   await viewModel.initialize();
 
-  runApp(
-    TriProofApp(
-      viewModel: viewModel,
-      feedbackService: feedbackService,
-    ),
-  );
+  runApp(TriProofApp(viewModel: viewModel, feedbackService: feedbackService));
 }
 
 /// Root widget for **TriProof AI Scanner**.

@@ -87,11 +87,14 @@ class MasterKeyService
 
         $legacy = (string) config('triproof.crypto.public_key');
         $decoded = base64_decode($legacy, true);
+        $globalActiveKeyExists = SigningKey::query()
+            ->where('status', 'active')
+            ->exists();
         if ($decoded !== false && strlen($decoded) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
             $fingerprint = hash('sha256', $decoded);
             $keys[] = [
                 'key_version' => self::LEGACY_VERSION,
-                'status' => 'verify_only',
+                'status' => $globalActiveKeyExists ? 'verify_only' : 'active',
                 'buyer_id' => null,
                 'public_key_base64' => $legacy,
                 'key_fingerprint' => $fingerprint,

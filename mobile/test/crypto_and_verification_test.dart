@@ -42,12 +42,15 @@ void main() {
       );
     });
 
-    test('repairs curved/smudged OCR label with broken pipes and O/0 confusion',
-        () {
-      const degraded = 'LOT: BD01-M08-B202611-000489\nI 2O26-11-O1 l 2028-11-01';
-      final repaired = OcrSerialNormalizer.extractAndNormalize(degraded);
-      expect(repaired, 'BD01-M08-B202611-000489|2026-11-01|2028-11-01');
-    });
+    test(
+      'repairs curved/smudged OCR label with broken pipes and O/0 confusion',
+      () {
+        const degraded =
+            'LOT: BD01-M08-B202611-000489\nI 2O26-11-O1 l 2028-11-01';
+        final repaired = OcrSerialNormalizer.extractAndNormalize(degraded);
+        expect(repaired, 'BD01-M08-B202611-000489|2026-11-01|2028-11-01');
+      },
+    );
   });
 
   group('Offline Ed25519 Cryptography & Verification Pipeline', () {
@@ -65,6 +68,9 @@ void main() {
       secureStore = InMemorySecureStore();
       keystoreService = SecureKeystoreService(store: secureStore);
       await keystoreService.initialize(currentUtc: currentClockUtc);
+      await keystoreService.upsertPublicKeyRing({
+        'K00': DemoSimulatorService.demoPublicKeyBase64,
+      });
 
       cryptoService = CryptoService(keystoreService: keystoreService);
       await cryptoService.warmUp();
@@ -107,117 +113,164 @@ void main() {
       expect(feedbackService.alertCount, 0);
     });
 
-    test('normalizes a smart URL QR payload to the canonical signed serial and hash',
-        () async {
-      final pair = await demoSimulator.generateScenario(
-        DemoScenario.genuineProduct,
-        referenceUtc: currentClockUtc,
-      );
-      final smartUrl =
-          'https://t.focusautomobiles.com/v/${Uri.encodeComponent(pair.outerSerialOrOcr)}';
+    test(
+      'normalizes a smart URL QR payload to the canonical signed serial and hash',
+      () async {
+        final pair = await demoSimulator.generateScenario(
+          DemoScenario.genuineProduct,
+          referenceUtc: currentClockUtc,
+        );
+        final smartUrl =
+            'https://t.focusautomobiles.com/v/${Uri.encodeComponent(pair.outerSerialOrOcr)}';
 
-      final result = await repository.verifyOffline(
-        outerSerial: smartUrl,
-        innerSerial: pair.innerSerial,
-        mode: ScanMode.consumerUnboxing,
-        sessionId: 'SMART-URL',
-      );
+        final result = await repository.verifyOffline(
+          outerSerial: smartUrl,
+          innerSerial: pair.innerSerial,
+          mode: ScanMode.consumerUnboxing,
+          sessionId: 'SMART-URL',
+        );
 
-      expect(result.offlineStatus, OfflineStatus.genuineOffline);
-      expect(result.record.outerSerial, pair.outerSerialOrOcr);
-      expect(
-        result.record.unitHash,
-        await cryptoService.computeUnitHash(
-          pair.outerSerialOrOcr,
-          pair.innerSerial,
-        ),
-      );
-    });
+        expect(result.offlineStatus, OfflineStatus.genuineOffline);
+        expect(result.record.outerSerial, pair.outerSerialOrOcr);
+        expect(
+          result.record.unitHash,
+          await cryptoService.computeUnitHash(
+            pair.outerSerialOrOcr,
+            pair.innerSerial,
+          ),
+        );
+      },
+    );
 
-    test('detects repeat owner on different session vs duplicate box in same session',
-        () async {
-      final pair = await demoSimulator.generateScenario(
-        DemoScenario.genuineProduct,
-        referenceUtc: currentClockUtc,
-      );
+    test(
+      'verifies exact QR-style smart URL and TP1-prefixed inner payload',
+      () async {
+        final pair = await demoSimulator.generateScenario(
+          DemoScenario.genuineProduct,
+          referenceUtc: currentClockUtc,
+        );
+        final outerQr =
+            'https://t.focusautomobiles.com/v/${Uri.encodeComponent(pair.outerSerialOrOcr)}';
+        final innerQr = 'TP1:${pair.innerSerial}';
 
-      final first = await repository.verifyOffline(
-        outerSerial: pair.outerSerialOrOcr,
-        innerSerial: pair.innerSerial,
-        mode: ScanMode.consumerUnboxing,
-        sessionId: 'SESSION-A',
-      );
-      expect(first.offlineStatus, OfflineStatus.genuineOffline);
+        expect(outerQr, contains('%7C'));
 
-      // Separate session on same device -> calm Repeat Owner badge.
-      final repeat = await repository.verifyOffline(
-        outerSerial: pair.outerSerialOrOcr,
-        innerSerial: pair.innerSerial,
-        mode: ScanMode.consumerUnboxing,
-        sessionId: 'SESSION-B',
-      );
-      expect(repeat.offlineStatus, OfflineStatus.repeatOwner);
-      expect(repeat.priorRegisteredDate, isNotNull);
-      expect(repeat.isEffectiveGenuine, isTrue);
+        final direct = await cryptoService.verifyEd25519(
+          outerSerial: pair.outerSerialOrOcr,
+          innerSerialBase64: innerQr,
+        );
+        expect(direct.isValid, isTrue);
 
-      // Same session pallet collision -> Duplicate Box Alert.
-      final duplicate = await repository.verifyOffline(
-        outerSerial: pair.outerSerialOrOcr,
-        innerSerial: pair.innerSerial,
-        mode: ScanMode.factoryPackingQa,
-        sessionId: 'SESSION-A',
-      );
-      expect(duplicate.offlineStatus, OfflineStatus.duplicateBox);
-      expect(duplicate.isEffectiveGenuine, isFalse);
-      expect(feedbackService.alertCount, 1);
-    });
+        final result = await repository.verifyOffline(
+          outerSerial: outerQr,
+          innerSerial: innerQr,
+          mode: ScanMode.consumerUnboxing,
+          sessionId: 'QR-ROUNDTRIP',
+        );
 
-    test('rejects swapped/counterfeit Ed25519 signature with Bangla warning',
-        () async {
-      final pair = await demoSimulator.generateScenario(
-        DemoScenario.swappedTagMismatch,
-        referenceUtc: currentClockUtc,
-      );
+        expect(result.offlineStatus, OfflineStatus.genuineOffline);
+        expect(result.isEffectiveGenuine, isTrue);
+        expect(result.record.outerSerial, pair.outerSerialOrOcr);
+        expect(
+          result.record.unitHash,
+          await cryptoService.computeUnitHash(
+            pair.outerSerialOrOcr,
+            pair.innerSerial,
+          ),
+        );
+      },
+    );
 
-      final result = await repository.verifyOffline(
-        outerSerial: pair.outerSerialOrOcr,
-        innerSerial: pair.innerSerial,
-        mode: ScanMode.consumerUnboxing,
-      );
+    test(
+      'detects repeat owner on different session vs duplicate box in same session',
+      () async {
+        final pair = await demoSimulator.generateScenario(
+          DemoScenario.genuineProduct,
+          referenceUtc: currentClockUtc,
+        );
 
-      expect(result.offlineStatus, OfflineStatus.fakeSignature);
-      expect(result.isEffectiveGenuine, isFalse);
-      expect(
-        result.messageBn,
-        contains('বক্স এবং ভেতরের ট্যাগের সিরিয়াল মিলছে না'),
-      );
-      expect(feedbackService.alertCount, 1);
-    });
+        final first = await repository.verifyOffline(
+          outerSerial: pair.outerSerialOrOcr,
+          innerSerial: pair.innerSerial,
+          mode: ScanMode.consumerUnboxing,
+          sessionId: 'SESSION-A',
+        );
+        expect(first.offlineStatus, OfflineStatus.genuineOffline);
 
-    test('enforces two-stage expiry: 45-day Factory QA vs full ExpDate Consumer',
-        () async {
-      final pair = await demoSimulator.generateScenario(
-        DemoScenario.shortDatedFactoryQaFail,
-        referenceUtc: currentClockUtc,
-      );
+        // Separate session on same device -> calm Repeat Owner badge.
+        final repeat = await repository.verifyOffline(
+          outerSerial: pair.outerSerialOrOcr,
+          innerSerial: pair.innerSerial,
+          mode: ScanMode.consumerUnboxing,
+          sessionId: 'SESSION-B',
+        );
+        expect(repeat.offlineStatus, OfflineStatus.repeatOwner);
+        expect(repeat.priorRegisteredDate, isNotNull);
+        expect(repeat.isEffectiveGenuine, isTrue);
 
-      final consumerResult = await repository.verifyOffline(
-        outerSerial: pair.outerSerialOrOcr,
-        innerSerial: pair.innerSerial,
-        mode: ScanMode.consumerUnboxing,
-        sessionId: 'C-1',
-      );
-      expect(consumerResult.offlineStatus, OfflineStatus.genuineOffline);
+        // Same session pallet collision -> Duplicate Box Alert.
+        final duplicate = await repository.verifyOffline(
+          outerSerial: pair.outerSerialOrOcr,
+          innerSerial: pair.innerSerial,
+          mode: ScanMode.factoryPackingQa,
+          sessionId: 'SESSION-A',
+        );
+        expect(duplicate.offlineStatus, OfflineStatus.duplicateBox);
+        expect(duplicate.isEffectiveGenuine, isFalse);
+        expect(feedbackService.alertCount, 1);
+      },
+    );
 
-      final qaResult = await repository.verifyOffline(
-        outerSerial: pair.outerSerialOrOcr,
-        innerSerial: pair.innerSerial,
-        mode: ScanMode.factoryPackingQa,
-        sessionId: 'QA-1',
-      );
-      expect(qaResult.offlineStatus, OfflineStatus.expired);
-      expect(qaResult.nearExpiryFactoryQa, isTrue);
-    });
+    test(
+      'rejects swapped/counterfeit Ed25519 signature with Bangla warning',
+      () async {
+        final pair = await demoSimulator.generateScenario(
+          DemoScenario.swappedTagMismatch,
+          referenceUtc: currentClockUtc,
+        );
+
+        final result = await repository.verifyOffline(
+          outerSerial: pair.outerSerialOrOcr,
+          innerSerial: pair.innerSerial,
+          mode: ScanMode.consumerUnboxing,
+        );
+
+        expect(result.offlineStatus, OfflineStatus.fakeSignature);
+        expect(result.isEffectiveGenuine, isFalse);
+        expect(
+          result.messageBn,
+          contains('বক্স এবং ভেতরের ট্যাগের সিরিয়াল মিলছে না'),
+        );
+        expect(feedbackService.alertCount, 1);
+      },
+    );
+
+    test(
+      'enforces two-stage expiry: 45-day Factory QA vs full ExpDate Consumer',
+      () async {
+        final pair = await demoSimulator.generateScenario(
+          DemoScenario.shortDatedFactoryQaFail,
+          referenceUtc: currentClockUtc,
+        );
+
+        final consumerResult = await repository.verifyOffline(
+          outerSerial: pair.outerSerialOrOcr,
+          innerSerial: pair.innerSerial,
+          mode: ScanMode.consumerUnboxing,
+          sessionId: 'C-1',
+        );
+        expect(consumerResult.offlineStatus, OfflineStatus.genuineOffline);
+
+        final qaResult = await repository.verifyOffline(
+          outerSerial: pair.outerSerialOrOcr,
+          innerSerial: pair.innerSerial,
+          mode: ScanMode.factoryPackingQa,
+          sessionId: 'QA-1',
+        );
+        expect(qaResult.offlineStatus, OfflineStatus.expired);
+        expect(qaResult.nearExpiryFactoryQa, isTrue);
+      },
+    );
 
     test('rejects recalled batch from <50KB local cached_blacklist', () async {
       final pair = await demoSimulator.generateScenario(
@@ -236,27 +289,29 @@ void main() {
       expect(result.isEffectiveGenuine, isFalse);
     });
 
-    test('blocks scan when device clock is rolled back below High-Water Mark',
-        () async {
-      final pair = await demoSimulator.generateScenario(
-        DemoScenario.expiredProduct,
-        referenceUtc: currentClockUtc,
-      );
+    test(
+      'blocks scan when device clock is rolled back below High-Water Mark',
+      () async {
+        final pair = await demoSimulator.generateScenario(
+          DemoScenario.expiredProduct,
+          referenceUtc: currentClockUtc,
+        );
 
-      // Simulate user turning phone clock back 30 days to bypass expiry!
-      currentClockUtc = currentClockUtc.subtract(const Duration(days: 30));
+        // Simulate user turning phone clock back 30 days to bypass expiry!
+        currentClockUtc = currentClockUtc.subtract(const Duration(days: 30));
 
-      final result = await repository.verifyOffline(
-        outerSerial: pair.outerSerialOrOcr,
-        innerSerial: pair.innerSerial,
-        mode: ScanMode.consumerUnboxing,
-      );
+        final result = await repository.verifyOffline(
+          outerSerial: pair.outerSerialOrOcr,
+          innerSerial: pair.innerSerial,
+          mode: ScanMode.consumerUnboxing,
+        );
 
-      expect(result.offlineStatus, OfflineStatus.clockRollback);
-      expect(result.isEffectiveGenuine, isFalse);
-      // High-Water Mark must never roll backward.
-      final hwm = await keystoreService.getHighWaterMark();
-      expect(hwm!.isAfter(currentClockUtc), isTrue);
-    });
+        expect(result.offlineStatus, OfflineStatus.clockRollback);
+        expect(result.isEffectiveGenuine, isFalse);
+        // High-Water Mark must never roll backward.
+        final hwm = await keystoreService.getHighWaterMark();
+        expect(hwm!.isAfter(currentClockUtc), isTrue);
+      },
+    );
   });
 }

@@ -1,13 +1,14 @@
-# TriProof AI Scanner (`tripoof_ai_scanner`)
+# TriProof AI Scanner (`tripoof_ai_scanner`) — v2.1
 
-Offline-first Flutter verifier for **Android and iOS**, located in [`mobile/`](.) inside the TriProof AI monorepo. It verifies signed labels in Airplane Mode, stores encrypted audit history with SQLCipher, synchronizes with the Laravel API when connectivity returns, and supports individual scan deletion plus full bilingual Clear History.
+Offline-first Flutter verifier for **Android and iOS**, located in [`mobile/`](.) inside the TriProof AI monorepo. It verifies signed labels in Airplane Mode, stores encrypted audit history with SQLCipher, synchronizes keys/blacklist/scan data with any deployed TriProof website, and supports individual scan deletion plus full bilingual Clear History.
 
 Related docs: [root README](../README.md) · [API reference](../docs/API.md) · [Architecture](../ARCHITECTURE.md) · [Checkpoint](../CHECKPOINT.md)
 
 ## Capabilities
 
 - **Offline Ed25519 verification:** pure-Dart verification of the detached Base64 signature over the exact canonical outer serial, using an embedded universal key or provisioned versioned key ring. Target latency is under 50 ms.
-- **Versioned key ring:** reads `KNN-` serial prefixes, `|DPP:XXXXXXXX` digests, smart `/v/...` URLs, and `/.well-known/triproof-key.json`; retired keys remain verifiable.
+- **Versioned key ring:** reads `KNN-` serial prefixes, `|DPP:XXXXXXXX` digests, smart `/v/...` URLs, and `/.well-known/triproof-key.json`; active and retired keys remain verifiable.
+- **Dynamic website trust sync (v2.1):** edit the server URL, sync keys and blacklist from any TriProof deployment, and keep working offline. Runs automatically at startup/online and manually from the **Update Offline Data from Website** card.
 - **Clock-rollback protection:** a persisted high-water mark advances with GPS time, verified scans, and server sync; stale device clocks are rejected.
 - **On-device vision:** ML Kit barcode scanning and text recognition repair curved or smudged labels; no cloud OCR is required.
 - **Encrypted local history:** SQLCipher database with `scan_history`, `cached_blacklist`, `notifications_inbox`, and `app_meta`. The 256-bit database key is generated with `Random.secure()` and stored in Android Keystore / iOS Keychain.
@@ -28,14 +29,15 @@ lib/
     utils/                               # OCR serial normalizer, smart payload parser, image helpers
   domain/
     enums/                               # AppLanguage, ScanMode, OfflineStatus, CloudStatus
-    models/                              # ParsedOuterSerial, ScanRecord, BloomFilter, AppNotification
+    models/                              # ParsedOuterSerial, ScanRecord, BloomFilter, TrustKey, AppNotification
   data/
     repositories/
-      verification_repository.dart       # 6-stage offline verification pipeline
+      verification_repository.dart       # offline verification pipeline
       sync_repository.dart               # connectivity listener and retroactive alerts
     services/
-      crypto_service.dart                # Ed25519, SHA-256 unit_hash, carton signature check
-      database_helper.dart               # SQLCipher DB, caches, delete/clear history
+      crypto_service.dart                # Ed25519 multi-key verification, SHA-256 unit_hash
+      trust_sync_service.dart            # website key-ring + blacklist/Bloom sync
+      database_helper.dart               # SQLCipher DB, caches, app_meta, delete/clear history
       secure_keystore_service.dart       # keystore keys and key-ring provisioning
       api_client.dart                    # REST client for cross-check, notifications, blacklist, keys
       location_time_service.dart         # GPS + high-water clock
@@ -44,7 +46,7 @@ lib/
       demo_simulator_service.dart        # signed Airplane Mode scenarios
   ui/
     view_models/                         # AppViewModel (ChangeNotifier)
-    core/widgets/                        # status bar, result cards, transfer sheet, alert banner
+    core/widgets/                        # status bar, result cards, website sync card, transfer sheet, alert banner
     features/
       home/
       scanner/widgets/                   # scanner overlay and seal inspection dialog
@@ -76,20 +78,24 @@ Run on a connected device or emulator:
 flutter run
 ```
 
-Build a release APK:
+Build the v2.1 release APKs:
 
 ```bash
-flutter build apk --release --split-per-abi
+flutter build apk --release --split-per-abi \
+  --build-name=2.1.0 --build-number=1
 ```
 
 Build with explicit production configuration:
 
 ```bash
 flutter build apk --release --split-per-abi \
+  --build-name=2.1.0 --build-number=1 \
   --dart-define=API_BASE_URL=https://<YOUR_DOMAIN> \
   --dart-define=UNIVERSAL_PUBLIC_KEY=<UNIVERSAL_PUBLIC_KEY> \
   --dart-define=BUILD_EPOCH_MS=1763510400000
 ```
+
+Artifacts are written to `build/app/outputs/flutter-apk/` as `app-arm64-v8a-release.apk`, `app-armeabi-v7a-release.apk`, and `app-x86_64-release.apk`.
 
 | Define | Default | Purpose |
 |---|---|---|
@@ -97,18 +103,18 @@ flutter build apk --release --split-per-abi \
 | `UNIVERSAL_PUBLIC_KEY` | embedded legacy `K00` key in `app_constants.dart` | Fallback public key before the key ring is provisioned |
 | `BUILD_EPOCH_MS` | `0` | Floor for the clock high-water mark to reject stale builds |
 
-Use `--dart-define=UNIVERSAL_PUBLIC_KEY=<UNIVERSAL_PUBLIC_KEY>` with the deployed public key. The universal public key is not a secret, but it must match the signing backend.
+Use `--dart-define=UNIVERSAL_PUBLIC_KEY=<UNIVERSAL_PUBLIC_KEY>` with the deployed public key. The universal public key is not a secret, but it must match the signing backend. In v2.1 the installed app can also change its website URL and refresh the key ring at runtime, so the compile-time key is only the fallback.
 
 ## Offline verification pipeline
 
 1. Clock-rollback guard using the persisted high-water mark.
-2. Smart-payload parsing: `/v/...` wrappers, `KNN-` prefixes, and `|DPP:XXXXXXXX` suffix.
-3. Ed25519 signature verification with the active or serial-selected key.
+2. Smart-payload parsing: `/v/...` wrappers, `TP1:` inner prefixes, `KNN-` prefixes, and `|DPP:XXXXXXXX` suffix.
+3. Ed25519 signature verification across all cached active/verify-only keys, then the embedded fallback key.
 4. Expiry and 45-day factory QA shelf-life threshold.
 5. Cached blacklist check; Bloom miss is a definitive negative, Bloom hit requires exact lookup.
 6. Session duplicate and prior-owner cache checks.
 
-Every result is stored as a `pending_sync` scan record with GPS, latency, device token, `scan_seq`, and both offline and cloud verdict fields.
+Before scanning, `TrustSyncService` loads persisted trust metadata and may refresh it from the configured website. Every result is stored as a `pending_sync` scan record with canonical outer serial, unit hash, GPS, latency, device token, `scan_seq`, and both offline and cloud verdict fields.
 
 ## SQLCipher database and history management
 
@@ -119,7 +125,7 @@ Every result is stored as a `pending_sync` scan record with GPS, latency, device
 | `scan_history` | Outer/inner serials, unit hash, batch scope, verdicts, bilingual messages, GPS, device token, `scan_seq`, timestamps |
 | `cached_blacklist` | Serial/batch reason codes, strict 50 KB budget |
 | `notifications_inbox` | Bilingual retroactive clone/recall notices |
-| `app_meta` | Key/value metadata including the stored Bloom filter |
+| `app_meta` | Key/value metadata including `server_base_url`, `synced_key_ring_json`, `last_trust_sync_at`, and the stored Bloom filter |
 
 Cache mirrors: `_blacklistCache`, `_bloomFilterCache`, `_sessionSerialCache`, and `_priorOwnerScanCache`.
 
@@ -127,12 +133,22 @@ Cache mirrors: `_blacklistCache`, `_bloomFilterCache`, `_sessionSerialCache`, an
 - `clearScanHistory()` removes all `scan_history` rows and invalidates the same caches. The UI label is **Clear All History**.
 - Both actions are confirmed through bilingual `AlertDialog`s in `lib/ui/features/history/scan_history_screen.dart` (`confirmDeleteItem`, `confirmClearAll`, Cancel/Delete actions) and report success via localized snackbars.
 
+## Dynamic trust sync (v2.1)
+
+`TrustSyncService` normalizes the URL (adds `https://` when needed, removes trailing slashes and `/api/v1`), fetches the public key ring, and persists valid 32-byte Ed25519 keys in both SQLCipher and secure storage. It then fetches the blacklist delta, replaces exact cache entries, saves the Bloom filter, and records the server timestamp.
+
+- Automatic: app initialization and online transitions (silent).
+- Manual: **Update Offline Data from Website** card on Home and **Sync Keys from Website** on a verification result.
+- Bilingual status shows active-key count, last update time, success, or failure.
+- No JWT is required; requests time out after 10 seconds and blacklist data stays within the 50 KB budget.
+
 ## Cloud endpoints used by the app
 
 - `POST {API_BASE_URL}/api/v1/verify/online-crosscheck` — uploads `records` (also accepted as `logs`) with `scan_seq`; reads verdicts from `results`.
 - `GET {API_BASE_URL}/api/v1/notifications/{device_token}` — public bilingual inbox.
-- `GET {API_BASE_URL}/api/v1/blacklist/delta` — public `<50KB` payload with `entries` and `bloom_filter`.
-- `GET {API_BASE_URL}/.well-known/triproof-key.json` — public key ring and trust contract.
+- `GET {API_BASE_URL}/api/v1/blacklist/delta` — public `<50KB` payload with `entries`, `bloom_filter`, and optional `server_time`.
+- `GET {API_BASE_URL}/.well-known/triproof-key.json` — public key ring and trust contract; accepts `key_ring`, `active_keys`, `verify_only_keys`, and `public_key_base64` / `public_key` / `universal_public_key` aliases.
+- The same two public endpoints power **Update Offline Data from Website**; the selected URL is persisted as `server_base_url`.
 
 Full request/response contracts are in [docs/API.md](../docs/API.md).
 
@@ -141,3 +157,5 @@ Full request/response contracts are in [docs/API.md](../docs/API.md).
 1. Enable Airplane Mode and confirm the **OFFLINE READY** pill.
 2. Use **Quick-Test Demo Simulator (Airplane Mode)** for genuine, repeat owner, expired, short-dated, swapped tag, duplicate box, recalled batch, and degraded OCR scenarios.
 3. Open the Alerts tab and run **Demo: Simulate Retroactive Clone/Recall Sync** to preview queue drain, SQLite status upgrade, OS notification, and bilingual warning banner.
+
+The v2.1 suite includes `test/trust_sync_test.dart` for key-ring parsing, URL normalization, SQLCipher persistence, and verification with a newly synced key, plus `test/trust_sync_widget_test.dart` for the bilingual sync card. Current package gates: **29 Flutter tests** and `flutter analyze --no-fatal-infos` with no errors or warnings.

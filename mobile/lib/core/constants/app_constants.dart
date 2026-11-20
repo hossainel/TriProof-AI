@@ -8,7 +8,7 @@ abstract final class AppConstants {
   /// or `--dart-define=UNIVERSAL_PUBLIC_KEY=<base64>`.
   static const String defaultUniversalPublicKeyBase64 = String.fromEnvironment(
     'UNIVERSAL_PUBLIC_KEY',
-    defaultValue: 'a4dFK0VuPZWbOIMTcz0ZWFt4JMBZkhN9pFcxuzeaji4=',
+    defaultValue: 'ImXhUWzqV+BrGs29mucsZGOsLV8CuMEA2BvgogWxEJQ=',
   );
 
   /// Base URL for the TriProof Cloud Cross-Check & Recall API.

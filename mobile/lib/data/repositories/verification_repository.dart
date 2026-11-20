@@ -30,13 +30,13 @@ class VerificationRepository {
     required LocationTimeService locationTimeService,
     UtcClock? clock,
     Uuid? uuid,
-  })  : _keystoreService = keystoreService,
-        _cryptoService = cryptoService,
-        _databaseHelper = databaseHelper,
-        _feedbackService = feedbackService,
-        _locationTimeService = locationTimeService,
-        _clock = clock ?? (() => DateTime.now().toUtc()),
-        _uuid = uuid ?? const Uuid();
+  }) : _keystoreService = keystoreService,
+       _cryptoService = cryptoService,
+       _databaseHelper = databaseHelper,
+       _feedbackService = feedbackService,
+       _locationTimeService = locationTimeService,
+       _clock = clock ?? (() => DateTime.now().toUtc()),
+       _uuid = uuid ?? const Uuid();
 
   final SecureKeystoreService _keystoreService;
   final CryptoService _cryptoService;
@@ -59,6 +59,7 @@ class VerificationRepository {
     required ScanMode mode,
     String sessionId = '',
     bool triggerFeedback = true,
+    List<int>? overridePublicKeyBytes,
   }) async {
     final totalStopwatch = Stopwatch()..start();
     final nowUtc = _clock().toUtc();
@@ -66,8 +67,9 @@ class VerificationRepository {
     final coords = _locationTimeService.getCachedCoordinates();
 
     // Normalize inner signature whitespace and optional URI/prefix wrapper.
-    final normalizedInner =
-        OcrSerialNormalizer.normalizeInnerSignature(innerSerial);
+    final normalizedInner = OcrSerialNormalizer.normalizeInnerSignature(
+      innerSerial,
+    );
 
     // ------------------------------------------------------------------
     // EARLY BRANCH: Sealed master carton (CTN-...|root|count|signature).
@@ -98,12 +100,16 @@ class VerificationRepository {
     // wrappers are stripped here so the persisted serial and unit hash are the
     // exact canonical strings that were signed by HQ and verified by the cloud.
     final smartParsed = ParsedOuterSerial.tryParse(outerSerial);
-    final cleanOuter = smartParsed?.rawSerial ??
-        (OcrSerialNormalizer.extractAndNormalize(outerSerial) ?? outerSerial.trim());
+    final cleanOuter =
+        smartParsed?.rawSerial ??
+        (OcrSerialNormalizer.extractAndNormalize(outerSerial) ??
+            outerSerial.trim());
     final parsed = smartParsed ?? ParsedOuterSerial.tryParse(cleanOuter);
 
-    final unitHash =
-        await _cryptoService.computeUnitHash(cleanOuter, normalizedInner);
+    final unitHash = await _cryptoService.computeUnitHash(
+      cleanOuter,
+      normalizedInner,
+    );
 
     // ------------------------------------------------------------------
     // STAGE 0: Anti-Clock-Rollback Protection (High-Water Mark)
@@ -172,6 +178,7 @@ class VerificationRepository {
       innerSerialBase64: normalizedInner,
       keyId: parsed.keyId,
       expectedDppDigest: parsed.dppDigest,
+      overridePublicKeyBytes: overridePublicKeyBytes,
     );
 
     if (!sigOutcome.isValid) {
@@ -210,7 +217,8 @@ class VerificationRepository {
     // ------------------------------------------------------------------
     final isPastAbsoluteExpiry = nowUtc.isAfter(parsed.expDateUtc);
     final remainingDays = parsed.expDateUtc.difference(nowUtc).inDays;
-    final failsFactoryQaThreshold = mode == ScanMode.factoryPackingQa &&
+    final failsFactoryQaThreshold =
+        mode == ScanMode.factoryPackingQa &&
         !isPastAbsoluteExpiry &&
         nowUtc
             .add(const Duration(days: AppConstants.factoryQaMinShelfLifeDays))
@@ -338,13 +346,17 @@ class VerificationRepository {
     // Advance monotonic high-water mark after timing the verification pipeline.
     // The compile-time build epoch is a hard floor for replay protection.
     await _keystoreService.updateHighWaterMarkIfNewer(
-      DateTime.fromMillisecondsSinceEpoch(AppConstants.buildEpochMs, isUtc: true),
+      DateTime.fromMillisecondsSinceEpoch(
+        AppConstants.buildEpochMs,
+        isUtc: true,
+      ),
     );
     await _keystoreService.updateHighWaterMarkIfNewer(nowUtc);
 
     if (priorOwnerScan != null) {
-      final dateFormatted = DateFormat('yyyy-MM-dd HH:mm')
-          .format(priorOwnerScan.scannedAt.toLocal());
+      final dateFormatted = DateFormat(
+        'yyyy-MM-dd HH:mm',
+      ).format(priorOwnerScan.scannedAt.toLocal());
       return _finalizeAndPersist(
         parsed: parsed,
         rawOuter: parsed.rawSerial,
@@ -407,7 +419,10 @@ class VerificationRepository {
     final genuine = outcome.isValid;
 
     await _keystoreService.updateHighWaterMarkIfNewer(
-      DateTime.fromMillisecondsSinceEpoch(AppConstants.buildEpochMs, isUtc: true),
+      DateTime.fromMillisecondsSinceEpoch(
+        AppConstants.buildEpochMs,
+        isUtc: true,
+      ),
     );
     await _keystoreService.updateHighWaterMarkIfNewer(nowUtc);
 
@@ -472,7 +487,10 @@ class VerificationRepository {
     String? factoryIdOverride,
     String? batchIdOverride,
   }) async {
-    final latencyMs = (elapsedMicroseconds / 1000).ceil().clamp(1, 999999).toInt();
+    final latencyMs = (elapsedMicroseconds / 1000)
+        .ceil()
+        .clamp(1, 999999)
+        .toInt();
     final scanSeq = await _keystoreService.nextScanSeq();
 
     final record = ScanRecord(

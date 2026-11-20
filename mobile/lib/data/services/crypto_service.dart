@@ -3,8 +3,11 @@ import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:cryptography/dart.dart';
+import 'package:triproof_ai_scanner/core/constants/app_constants.dart';
 import 'package:triproof_ai_scanner/core/utils/smart_payload_parser.dart';
+import 'package:triproof_ai_scanner/data/services/database_helper.dart';
 import 'package:triproof_ai_scanner/data/services/secure_keystore_service.dart';
+import 'package:triproof_ai_scanner/domain/models/trust_key.dart';
 
 /// Result of a single Ed25519 signature check with measured latency.
 class Ed25519VerifyOutcome {
@@ -29,10 +32,14 @@ class Ed25519VerifyOutcome {
 /// payload builder.
 class CryptoService {
   /// Creates a [CryptoService] bound to [keystoreService].
-  CryptoService({required SecureKeystoreService keystoreService})
-      : _keystoreService = keystoreService;
+  CryptoService({
+    required SecureKeystoreService keystoreService,
+    DatabaseHelper? databaseHelper,
+  }) : _keystoreService = keystoreService,
+       _databaseHelper = databaseHelper;
 
   final SecureKeystoreService _keystoreService;
+  final DatabaseHelper? _databaseHelper;
   // In-isolate pure-Dart Ed25519 + SHA-256 avoids MethodChannel / isolate
   // spawn latency so offline verification consistently completes in <50ms.
   final Ed25519 _ed25519 = DartEd25519(sha512: const DartSha512());
@@ -44,10 +51,9 @@ class CryptoService {
   Future<void> warmUp() async {
     final publicKeyBytes = await _keystoreService.getUniversalPublicKeyBytes();
     final key = SimplePublicKey(publicKeyBytes, type: KeyPairType.ed25519);
-    await _ed25519.verify(
-      const [0],
-      signature: Signature(List<int>.filled(64, 0), publicKey: key),
-    );
+    await _ed25519.verify(const [
+      0,
+    ], signature: Signature(List<int>.filled(64, 0), publicKey: key));
     await _sha256.hash(const [0]);
   }
 
@@ -89,32 +95,104 @@ class CryptoService {
       );
     }
 
+    final override = overridePublicKeyBytes;
+    final candidates = override != null
+        ? <List<int>>[override]
+        : await _trustedKeyCandidates(keyId ?? 'K00');
+
+    final messageBytes = utf8.encode(outerSerial);
+    for (final publicKeyBytes in candidates) {
+      try {
+        final publicKey = SimplePublicKey(
+          publicKeyBytes,
+          type: KeyPairType.ed25519,
+        );
+        final valid = await _ed25519.verify(
+          messageBytes,
+          signature: Signature(signatureBytes, publicKey: publicKey),
+        );
+        if (valid) {
+          stopwatch.stop();
+          return Ed25519VerifyOutcome(
+            isValid: true,
+            elapsedMicroseconds: stopwatch.elapsedMicroseconds,
+          );
+        }
+      } catch (_) {
+        // Try the next trusted key.
+      }
+    }
+
+    stopwatch.stop();
+    return Ed25519VerifyOutcome(
+      isValid: false,
+      elapsedMicroseconds: stopwatch.elapsedMicroseconds,
+    );
+  }
+
+  /// Builds a deduplicated candidate list from the synced SQLCipher key ring,
+  /// hardware keystore ring, and the compile-time fallback key. The requested
+  /// key version is tried first, followed by active/verify-only keys.
+  Future<List<List<int>>> _trustedKeyCandidates(String requestedVersion) async {
+    final candidates = <_KeyCandidate>[];
+    final seen = <String>{};
+
+    void add(String version, String encoded, {bool compileTime = false}) {
+      final decoded = _decodePublicKeyImpl(encoded);
+      if (decoded == null) return;
+      final fingerprint = base64Encode(decoded);
+      if (!seen.add(fingerprint)) return;
+      candidates.add(_KeyCandidate(version, decoded, compileTime: compileTime));
+    }
+
+    final synced =
+        await _databaseHelper?.readSyncedKeyRing() ?? const <TrustKey>[];
+    for (final key in synced) {
+      add(key.version, key.publicKey);
+    }
+
     try {
-      final publicKeyBytes = overridePublicKeyBytes ??
-          await _keystoreService.getPublicKeyBytes(keyId ?? 'K00');
-      final publicKey = SimplePublicKey(
-        publicKeyBytes,
-        type: KeyPairType.ed25519,
-      );
-
-      final messageBytes = utf8.encode(outerSerial);
-      final signature = Signature(signatureBytes, publicKey: publicKey);
-
-      final valid = await _ed25519.verify(
-        messageBytes,
-        signature: signature,
-      );
-      stopwatch.stop();
-      return Ed25519VerifyOutcome(
-        isValid: valid,
-        elapsedMicroseconds: stopwatch.elapsedMicroseconds,
-      );
+      for (final entry in (await _keystoreService.getPublicKeyRing()).entries) {
+        add(entry.key, entry.value);
+      }
     } catch (_) {
-      stopwatch.stop();
-      return Ed25519VerifyOutcome(
-        isValid: false,
-        elapsedMicroseconds: stopwatch.elapsedMicroseconds,
-      );
+      // Keystore may be uninitialized; synced and compile-time keys still work.
+    }
+
+    add('K00', AppConstants.defaultUniversalPublicKeyBase64, compileTime: true);
+
+    candidates.sort(
+      (a, b) => _keyPriority(
+        a,
+        requestedVersion,
+      ).compareTo(_keyPriority(b, requestedVersion)),
+    );
+
+    return candidates.map((candidate) => candidate.bytes).toList();
+  }
+
+  int _keyPriority(_KeyCandidate candidate, String requestedVersion) {
+    final matches =
+        candidate.version == requestedVersion ||
+        (requestedVersion.isEmpty && candidate.version == 'K00');
+    if (matches && !candidate.compileTime) return 0;
+    if (matches) return 1;
+    if (!candidate.compileTime) return 2;
+    return 3;
+  }
+
+  List<int>? _decodePublicKeyImpl(String encoded) {
+    var value = encoded.trim().replaceAll('-', '+').replaceAll('_', '/');
+    final remainder = value.length % 4;
+    if (remainder == 1) return null;
+    if (remainder > 0) {
+      value = value.padRight(value.length + (4 - remainder), '=');
+    }
+    try {
+      final bytes = base64Decode(value);
+      return bytes.length == 32 ? bytes : null;
+    } on FormatException {
+      return null;
     }
   }
 
@@ -172,12 +250,8 @@ class CryptoService {
   /// Computes a deterministic SHA-256 hex digest binding [outerSerial] and
   /// [innerSerial] into a compact `unit_hash` identifier.
   Future<String> computeUnitHash(String outerSerial, String innerSerial) async {
-    final digest = await _sha256.hash(
-      utf8.encode('$outerSerial|$innerSerial'),
-    );
-    return digest.bytes
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    final digest = await _sha256.hash(utf8.encode('$outerSerial|$innerSerial'));
+    return digest.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
   /// Generates a structured JSON string for the "Transfer Ownership QR"
@@ -195,8 +269,9 @@ class CryptoService {
     final claimInput =
         '$outerSerial|$unitHash|$currentDeviceToken|$nonce|$issuedAt';
     final claimDigest = await _sha256.hash(utf8.encode(claimInput));
-    final proofTag = base64UrlEncode(claimDigest.bytes.sublist(0, 16))
-        .replaceAll('=', '');
+    final proofTag = base64UrlEncode(
+      claimDigest.bytes.sublist(0, 16),
+    ).replaceAll('=', '');
 
     return jsonEncode({
       'protocol': 'TRIPROOF_TRANSFER_V1',
@@ -210,8 +285,9 @@ class CryptoService {
   }
 
   String? _extractDppDigest(String outerSerial) {
-    final match = RegExp(r'\|DPP:([A-Fa-f0-9]{8})\s*$')
-        .firstMatch(SmartPayloadParser.stripSmartPrefix(outerSerial));
+    final match = RegExp(
+      r'\|DPP:([A-Fa-f0-9]{8})\s*$',
+    ).firstMatch(SmartPayloadParser.stripSmartPrefix(outerSerial));
     return match?.group(1);
   }
 
@@ -244,4 +320,12 @@ class CryptoService {
       return null;
     }
   }
+}
+
+class _KeyCandidate {
+  const _KeyCandidate(this.version, this.bytes, {this.compileTime = false});
+
+  final String version;
+  final List<int> bytes;
+  final bool compileTime;
 }

@@ -9,14 +9,17 @@ import 'package:triproof_ai_scanner/domain/models/app_notification.dart';
 import 'package:triproof_ai_scanner/domain/models/bloom_filter.dart';
 import 'package:triproof_ai_scanner/domain/models/blacklist_entry.dart';
 import 'package:triproof_ai_scanner/domain/models/scan_record.dart';
+import 'package:triproof_ai_scanner/domain/models/trust_key.dart';
 
 /// Callback signature for custom database opening (used in headless unit tests
 /// with `sqflite_common_ffi`).
-typedef TestDatabaseOpener = Future<Database> Function(
-  int version,
-  Future<void> Function(Database db, int version) onCreate,
-  Future<void> Function(Database db, int oldVersion, int newVersion) onUpgrade,
-);
+typedef TestDatabaseOpener =
+    Future<Database> Function(
+      int version,
+      Future<void> Function(Database db, int version) onCreate,
+      Future<void> Function(Database db, int oldVersion, int newVersion)
+      onUpgrade,
+    );
 
 /// Manages the local SQLCipher-encrypted SQLite database with 3 core tables:
 /// `scan_history`, `cached_blacklist`, and `notifications_inbox`.
@@ -25,14 +28,23 @@ class DatabaseHelper {
   DatabaseHelper({
     required SecureKeystoreService keystoreService,
     TestDatabaseOpener? testDatabaseOpener,
-  })  : _keystoreService = keystoreService,
-        _testDatabaseOpener = testDatabaseOpener;
+  }) : _keystoreService = keystoreService,
+       _testDatabaseOpener = testDatabaseOpener;
 
   static const String _databaseName = 'triproof_scanner_v1.db';
   static const int _databaseVersion = 2;
 
   /// Key under which the cloud bloom filter JSON is stored in `app_meta`.
   static const String bloomFilterMetaKey = 'bloom_filter';
+
+  /// Key under which the user-configured TriProof website base URL is stored.
+  static const String serverBaseUrlMetaKey = 'server_base_url';
+
+  /// Key under which the synced public key ring JSON is stored.
+  static const String syncedKeyRingMetaKey = 'synced_key_ring_json';
+
+  /// Key under which the last successful website trust sync time is stored.
+  static const String lastTrustSyncAtMetaKey = 'last_trust_sync_at';
 
   /// Table storing all offline & cloud-synced verification records.
   static const String tableScanHistory = 'scan_history';
@@ -185,24 +197,16 @@ class DatabaseHelper {
     // Seed compact sample recalled batches (<500 bytes) for immediate offline
     // QA & customs verification before first cloud delta sync.
     final nowIso = DateTime.now().toUtc().toIso8601String();
-    await db.insert(
-      tableCachedBlacklist,
-      {
-        'serial_or_batch': 'B2026RECALL',
-        'reason': 'DGDA Precision Recall: Packaging seal lot compromised',
-        'updated_at': nowIso,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-    await db.insert(
-      tableCachedBlacklist,
-      {
-        'serial_or_batch': 'BD01-M04-B2026CLONE-000999|2026-09-01|2028-09-01',
-        'reason': 'Confirmed counterfeit clone serial cluster (Chattogram Port)',
-        'updated_at': nowIso,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert(tableCachedBlacklist, {
+      'serial_or_batch': 'B2026RECALL',
+      'reason': 'DGDA Precision Recall: Packaging seal lot compromised',
+      'updated_at': nowIso,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(tableCachedBlacklist, {
+      'serial_or_batch': 'BD01-M04-B2026CLONE-000999|2026-09-01|2028-09-01',
+      'reason': 'Confirmed counterfeit clone serial cluster (Chattogram Port)',
+      'updated_at': nowIso,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   /// Migrates legacy databases to schema v2.
@@ -374,9 +378,7 @@ class DatabaseHelper {
     String? feedbackMessageBn,
   }) async {
     final db = await database;
-    final values = <String, Object?>{
-      'cloud_status': cloudStatus.dbValue,
-    };
+    final values = <String, Object?>{'cloud_status': cloudStatus.dbValue};
     if (feedbackMessageEn != null) {
       values['feedback_message_en'] = feedbackMessageEn;
     }
@@ -440,7 +442,9 @@ class DatabaseHelper {
     final cache = _blacklistCache!;
     if (cache.containsKey(outerSerial)) return cache[outerSerial];
     if (cache.containsKey(batchId)) return cache[batchId];
-    if (unitHash != null && unitHash.isNotEmpty && cache.containsKey(unitHash)) {
+    if (unitHash != null &&
+        unitHash.isNotEmpty &&
+        cache.containsKey(unitHash)) {
       return cache[unitHash];
     }
     return null;
@@ -451,14 +455,10 @@ class DatabaseHelper {
     final filter = BloomFilter.fromMap(bloom);
     if (!filter.isValid) return;
     final db = await database;
-    await db.insert(
-      tableAppMeta,
-      {
-        'key': bloomFilterMetaKey,
-        'value': filter.toJson(),
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert(tableAppMeta, {
+      'key': bloomFilterMetaKey,
+      'value': filter.toJson(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
     _bloomFilterCache = filter;
   }
 
@@ -489,9 +489,9 @@ class DatabaseHelper {
     List<BlacklistEntry> entries, {
     bool replaceAll = false,
   }) async {
-    final serializedBytes = utf8.encode(
-      jsonEncode(entries.map((e) => e.toMap()).toList()),
-    ).length;
+    final serializedBytes = utf8
+        .encode(jsonEncode(entries.map((e) => e.toMap()).toList()))
+        .length;
 
     if (serializedBytes > AppConstants.maxBlacklistPayloadBytes) {
       throw StateError(
@@ -535,7 +535,9 @@ class DatabaseHelper {
   }
 
   /// Inserts a notification into `notifications_inbox`.
-  Future<AppNotification> insertNotification(AppNotification notification) async {
+  Future<AppNotification> insertNotification(
+    AppNotification notification,
+  ) async {
     final db = await database;
     final id = await db.insert(
       tableNotificationsInbox,
@@ -590,6 +592,72 @@ class DatabaseHelper {
     final db = await database;
     await db.update(tableNotificationsInbox, {'is_read': 1});
   }
+
+  /// Reads a raw `app_meta` value, or `null` when absent.
+  Future<String?> getMeta(String key) async {
+    final db = await database;
+    final rows = await db.query(
+      tableAppMeta,
+      where: 'key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['value'] as String?;
+  }
+
+  /// Writes a raw `app_meta` value.
+  Future<void> setMeta(String key, String value) async {
+    final db = await database;
+    await db.insert(tableAppMeta, {
+      'key': key,
+      'value': value,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  /// Returns the configured server URL or the compile-time default.
+  Future<String> getServerBaseUrl() async {
+    final stored = await getMeta(serverBaseUrlMetaKey);
+    return (stored != null && stored.trim().isNotEmpty)
+        ? stored
+        : AppConstants.apiBaseUrl;
+  }
+
+  /// Persists the user-configured server URL.
+  Future<void> setServerBaseUrl(String url) =>
+      setMeta(serverBaseUrlMetaKey, url.trim());
+
+  /// Returns the synced public key ring from encrypted `app_meta`.
+  Future<List<TrustKey>> readSyncedKeyRing() async {
+    final raw = await getMeta(syncedKeyRingMetaKey);
+    if (raw == null || raw.trim().isEmpty) return const <TrustKey>[];
+    try {
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(TrustKey.fromMap)
+          .toList();
+    } on FormatException {
+      return const <TrustKey>[];
+    }
+  }
+
+  /// Persists the synced public key ring into encrypted `app_meta`.
+  Future<void> saveSyncedKeyRing(List<TrustKey> keys) => setMeta(
+    syncedKeyRingMetaKey,
+    jsonEncode(keys.map((k) => k.toMap()).toList()),
+  );
+
+  /// Returns the last successful website trust sync timestamp.
+  Future<DateTime?> getLastTrustSyncAt() async {
+    final raw = await getMeta(lastTrustSyncAtMetaKey);
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw)?.toUtc();
+  }
+
+  /// Persists the last successful website trust sync timestamp.
+  Future<void> setLastTrustSyncAt(DateTime value) =>
+      setMeta(lastTrustSyncAtMetaKey, value.toUtc().toIso8601String());
 
   /// Closes the open SQLite database connection.
   Future<void> close() async {

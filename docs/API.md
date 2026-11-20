@@ -1,4 +1,4 @@
-# TriProof AI REST API (v1 + Enterprise V2 additions)
+# TriProof AI REST API (v1 + Enterprise V2/v2.1 additions)
 
 The mobile/partner API is versioned under `/api/v1`. The web console uses Laravel sessions and CSRF separately. This document describes the JSON API, public trust endpoints, and the public smart-URL passport. Cross-reference [Architecture](../ARCHITECTURE.md), the [main README](../README.md), and the [mobile client](../mobile/README.md).
 
@@ -16,6 +16,8 @@ GET /v/{payload}
 ```
 
 Send `Accept: application/json` on every API request and `Content-Type: application/json` when a body is present. Times are ISO-8601 UTC. Path parameters `po` are numeric purchase-order IDs. Factory, machine, and batch identifiers are normalized to uppercase where appropriate.
+
+The public trust endpoints (`/.well-known/triproof-key.json` and `/api/v1/blacklist/delta`) require no JWT and allow exact origins configured in `CORS_ALLOWED_ORIGINS`.
 
 ## Authentication
 
@@ -72,16 +74,22 @@ Success (`200`) contains JWT metadata, user, verification key material, and the 
       "configured": true,
       "key_ring": [
         {
-          "version": "K00",
+          "key_version": "K00",
           "public_key_base64": "<32-byte-base64-key>",
           "status": "active",
-          "fingerprint": "<sha256-hex>"
+          "buyer_id": null,
+          "key_fingerprint": "<sha256-hex>",
+          "key_id": "<first-32-hex-chars>",
+          "algorithm": "Ed25519"
         }
       ],
-      "active_keys": {
-        "global": "K00",
-        "buyers": {}
-      }
+      "active_keys": [
+        {
+          "key_version": "K00",
+          "public_key_base64": "<32-byte-base64-key>",
+          "status": "active"
+        }
+      ]
     },
     "offline_blacklist": {
       "encoding": "gzip+base64",
@@ -433,7 +441,7 @@ Public. Returns dependency status for database, sodium compatibility, signing ke
 
 ### `GET /.well-known/triproof-key.json`
 
-Public. Publishes the issuer, algorithm, current public key, fingerprint, key ID, key ring, active/verify-only keys, rotation policy, serial contract, and offline trust model:
+Public. Publishes the issuer, algorithm, current public key aliases, fingerprint, key ID, full key ring, active/verify-only keys, rotation policy, serial contract, and offline trust model. The configured legacy `K00` key is always present: it is `active` when `signing_keys` has no active row and `verify_only` once a DB-backed key is active.
 
 ```json
 {
@@ -442,22 +450,46 @@ Public. Publishes the issuer, algorithm, current public key, fingerprint, key ID
     "issuer": "TriProof AI",
     "algorithm": "Ed25519",
     "public_key_base64": "<32-byte-base64-key>",
+    "public_key": "<32-byte-base64-key>",
+    "universal_public_key": "<32-byte-base64-key>",
     "key_fingerprint": "<sha256-hex>",
     "key_id": "<first-32-hex-chars>",
     "key_rotation_months": 6,
     "key_ring": [
-      {"version":"K00","public_key_base64":"<base64>","status":"active","fingerprint":"<sha256-hex>"}
+      {
+        "key_version": "K00",
+        "status": "active",
+        "buyer_id": null,
+        "public_key_base64": "<base64>",
+        "key_fingerprint": "<sha256-hex>",
+        "key_id": "<first-32-hex-chars>",
+        "algorithm": "Ed25519"
+      }
     ],
-    "active_keys": {"global":"K00","buyers":{}},
+    "active_keys": [
+      {"key_version": "K00", "status": "active", "public_key_base64": "<base64>"}
+    ],
     "verify_only_keys": [],
     "serial_format": "{KEY_VER}-{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{PROD_DATE}|{EXP_DATE}|DPP:{DPP_DIGEST}",
     "legacy_serial_format": "{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{PROD_DATE}|{EXP_DATE}",
     "inner_serial_format": "Base64(Ed25519 detached signature of outer serial)",
     "unit_hash": "SHA-256(outer_serial + \"|\" + inner_serial)",
-    "offline_trust_model": "Verify the Ed25519 signature locally; cloud cross-check establishes ownership and recall state."
+    "offline_trust_model": "Verify the Ed25519 signature locally using the versioned key ring; cloud cross-check establishes ownership and recall state."
   }
 }
 ```
+
+### Mobile trust sync flow (v2.1)
+
+The Flutter verifier performs this flow without a JWT:
+
+1. Normalize the configured URL (adds `https://` when omitted, removes a trailing slash or `/api/v1`).
+2. `GET /.well-known/triproof-key.json`; accept keys from `key_ring`, `active_keys`, `verify_only_keys`, and top-level `public_key_base64` / `public_key` / `universal_public_key` aliases.
+3. Persist valid 32-byte Ed25519 keys in SQLCipher `app_meta` (`synced_key_ring_json`) and provision them into Android Keystore / iOS Keychain.
+4. `GET /api/v1/blacklist/delta`; replace exact entries and persist `bloom_filter` when present.
+5. Persist `server_base_url` and `last_trust_sync_at`; verification then tries all cached active/verify-only keys before the compile-time fallback.
+
+Sync runs automatically at app initialization and when connectivity returns, and manually through the bilingual **Update Offline Data from Website** card. Network requests use a 10-second timeout and the blacklist payload is bounded by the mobile 50 KB budget.
 
 ### `GET /v/{payload}`
 
@@ -472,6 +504,8 @@ Public web page. Renders a product passport and DPP scorecard from a signed oute
 - The offline Bloom filter targets 30,000 entries within 240,000 bits and reports its measured false-positive rate (~2% at the cap). It is a warning, never a final verdict.
 - Device attestation adds signed monotonic `scan_seq`, `device_signature`, and optional `contact_hash`; replay is rejected with `409 scan_seq_replay`.
 - Local Merkle anchor receipts use `TRIPROOF-ANCHOR|{date}|{root}|{poIds}`; the API compatibility field remains `pending_phase_2`.
+- v2.1 mobile trust sync consumes the public key-ring and blacklist-delta endpoints directly; installing a new build is not required when the trusted key ring rotates.
+- v2.1 verification accepts raw `/v/{OUTER_SERIAL}` smart URLs and `TP1:`-prefixed inner payloads, then compares the canonical outer serial before Ed25519 verification.
 
 ## cURL quick start
 

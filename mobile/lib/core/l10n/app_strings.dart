@@ -21,16 +21,41 @@ class AppStrings {
       pick('TriProof AI Scanner', 'ট্রাইপ্রুফ এআই স্ক্যানার');
 
   String get appSubtitle => pick(
-        'Offline Cryptographic Supply-Chain Verifier',
-        'অফলাইন ক্রিপ্টোগ্রাফিক পণ্য যাচাইকরণ',
-      );
+    'Offline Cryptographic Supply-Chain Verifier',
+    'অফলাইন ক্রিপ্টোগ্রাফিক পণ্য যাচাইকরণ',
+  );
 
-  String get offlineReadyPillPrefix =>
-      pick('OFFLINE READY', 'অফলাইন প্রস্তুত');
+  String get offlineReadyPillPrefix => pick('OFFLINE READY', 'অফলাইন প্রস্তুত');
 
   String get onlineSyncedPill => pick('ONLINE SYNCED', 'অনলাইন সিঙ্কড');
 
   String get syncingPill => pick('SYNCING...', 'সিঙ্ক হচ্ছে...');
+
+  // Website Trust Sync
+  String get websiteSyncTitle =>
+      pick('Website Sync & Offline Trust', 'ওয়েবসাইট সিঙ্ক ও অফলাইন বিশ্বাস');
+  String get serverUrlLabel =>
+      pick('Server Website URL', 'সার্ভার ওয়েবসাইট ঠিকানা');
+  String get updateFromWebsiteButton =>
+      pick('Update from Website', 'ওয়েবসাইট থেকে আপডেট করুন');
+  String get syncKeysFromWebsiteButton =>
+      pick('Sync Keys from Website', 'ওয়েবসাইট থেকে কী সিঙ্ক করুন');
+  String get trustStatusLabel => pick('Status & Metadata', 'অবস্থা ও তথ্য');
+  String get activeKeysLabel => pick('Active Keys', 'সক্রিয় কী');
+  String get lastUpdatedLabel => pick('Last Updated', 'সর্বশেষ আপডেট');
+  String get notYetSynced => pick(
+    'Not yet synced — using built-in key',
+    'এখনো সিঙ্ক হয়নি — বিল্ট-ইন কী ব্যবহার করছে',
+  );
+  String get trustSyncSuccess => pick(
+    'Offline keys & blacklist updated from website',
+    'ওয়েবসাইট থেকে অফলাইন কী ও ব্ল্যাকলিস্ট আপডেট হয়েছে',
+  );
+  String get trustSyncFailure => pick(
+    'Website sync failed — cached trust data kept',
+    'ওয়েবসাইট সিঙ্ক ব্যর্থ — ক্যাশ করা বিশ্বাস তথ্য রাখা হয়েছে',
+  );
+  String get syncChipPrefix => pick('TRUST', 'বিশ্বাস');
 
   String get pendingSyncPillPrefix => pick('PENDING SYNC', 'সিঙ্ক বাকি');
 
@@ -40,73 +65,71 @@ class AppStrings {
   String get tabAlerts => pick('Alerts', 'সতর্কতা');
 
   // Home Screen
-  String get modeSectionTitle =>
-      pick('Verification Mode', 'যাচাইকরণ মোড');
-  String get consumerModeTitle =>
-      pick('Consumer Unboxing', 'ভোক্তা আনবক্সিং');
+  String get modeSectionTitle => pick('Verification Mode', 'যাচাইকরণ মোড');
+  String get consumerModeTitle => pick('Consumer Unboxing', 'ভোক্তা আনবক্সিং');
   String get consumerModeDesc => pick(
-        'Full expiry check & device owner lock',
-        'পূর্ণ মেয়াদ যাচাই ও ডিভাইস মালিকানা নিবন্ধন',
-      );
+    'Full expiry check & device owner lock',
+    'পূর্ণ মেয়াদ যাচাই ও ডিভাইস মালিকানা নিবন্ধন',
+  );
   String get factoryModeTitle =>
       pick('Factory Packing QA', 'ফ্যাক্টরি প্যাকিং কিউএ');
   String get factoryModeDesc => pick(
-        'Strict 45-day shelf life & pallet duplicate guard',
-        'কঠোর ৪৫ দিনের মেয়াদ ও প্যালেট ডুপ্লিকেট সুরক্ষা',
-      );
+    'Strict 45-day shelf life & pallet duplicate guard',
+    'কঠোর ৪৫ দিনের মেয়াদ ও প্যালেট ডুপ্লিকেট সুরক্ষা',
+  );
 
-  String get startScanCta => pick(
-        'SCAN PRODUCT (2-STEP)',
-        'পণ্য স্ক্যান করুন (২-ধাপ)',
-      );
+  String get startScanCta =>
+      pick('SCAN PRODUCT (2-STEP)', 'পণ্য স্ক্যান করুন (২-ধাপ)');
   String get startScanSubtitle => pick(
-        'Zero internet • Ed25519 <50ms • On-Device Vision AI',
-        'ইন্টারনেট ছাড়াই • Ed25519 <৫০মি.সে. • অন-ডিভাইস ভিশন এআই',
-      );
+    'Zero internet • Ed25519 <50ms • On-Device Vision AI',
+    'ইন্টারনেট ছাড়াই • Ed25519 <৫০মি.সে. • অন-ডিভাইস ভিশন এআই',
+  );
 
   String get demoSimulatorButton => pick(
-        'Quick-Test Demo Simulator (Airplane Mode)',
-        'কুইক-টেস্ট ডেমো সিমুলেটর (এয়ারপ্লেন মোড)',
-      );
+    'Quick-Test Demo Simulator (Airplane Mode)',
+    'কুইক-টেস্ট ডেমো সিমুলেটর (এয়ারপ্লেন মোড)',
+  );
 
   String get activeSessionBoxes =>
       pick('Active Pallet Session Scans', 'চলমান প্যালেট সেশন স্ক্যান');
   String get resetSession => pick('New Pallet', 'নতুন প্যালেট');
 
   // Scanner Screen
-  String get step1Title =>
-      pick('Step 1 of 2: Outer Box Public Serial', 'ধাপ ১/২: বাইরের বক্সের সিরিয়াল');
+  String get step1Title => pick(
+    'Step 1 of 2: Outer Box Public Serial',
+    'ধাপ ১/২: বাইরের বক্সের সিরিয়াল',
+  );
   String get step1Instruction => pick(
-        'Point camera at the outer barcode/QR or printed curved serial label. ML Kit OCR repairs smudged ink offline.',
-        'বক্সের বাইরের বারকোড/কিউআর বা বাঁকা ছাপা সিরিয়ালের দিকে ক্যামেরা ধরুন। এমএল কিট ওসিআর অফলাইনেই অস্পষ্ট লেখা পড়ে নেবে।',
-      );
-  String get step2Title =>
-      pick('Step 2 of 2: Inner Private Seal Tag', 'ধাপ ২/২: ভেতরের গোপন সিল ট্যাগ');
+    'Point camera at the outer barcode/QR or printed curved serial label. ML Kit OCR repairs smudged ink offline.',
+    'বক্সের বাইরের বারকোড/কিউআর বা বাঁকা ছাপা সিরিয়ালের দিকে ক্যামেরা ধরুন। এমএল কিট ওসিআর অফলাইনেই অস্পষ্ট লেখা পড়ে নেবে।',
+  );
+  String get step2Title => pick(
+    'Step 2 of 2: Inner Private Seal Tag',
+    'ধাপ ২/২: ভেতরের গোপন সিল ট্যাগ',
+  );
   String get step2Instruction => pick(
-        'Align the inner QR or DataMatrix signature code exposed after breaking the tamper-evident seal.',
-        'ট্যাম্পার-এভিডেন্ট সিল খোলার পর ভেতরের কিউআর বা ডেটা-ম্যাট্রিক্স কোডটি স্ক্যান করুন।',
-      );
+    'Align the inner QR or DataMatrix signature code exposed after breaking the tamper-evident seal.',
+    'ট্যাম্পার-এভিডেন্ট সিল খোলার পর ভেতরের কিউআর বা ডেটা-ম্যাট্রিক্স কোডটি স্ক্যান করুন।',
+  );
 
   String get manualEntryButton =>
       pick('Manual / Paste Serial', 'ম্যানুয়াল সিরিয়াল লিখুন');
 
   // Physical Seal Inspection Dialog
   String get sealPromptTitle => pick(
-        'Physical Seal & Micro-Dot Inspection',
-        'ভৌত সিল ও মাইক্রো-ডট পরীক্ষা',
-      );
+    'Physical Seal & Micro-Dot Inspection',
+    'ভৌত সিল ও মাইক্রো-ডট পরীক্ষা',
+  );
   String get sealPromptBody => pick(
-        'Before scanning Step 2, physically inspect the inner scratch-off tamper seal and micro-dot hologram. Confirm it was completely intact before you broke it.',
-        'ধাপ ২ স্ক্যান করার আগে ভেতরের স্ক্র্যাচ-অফ ট্যাম্পার সিল এবং মাইক্রো-ডট হলোগ্রামটি ভালোভাবে পরীক্ষা করুন। আপনি খোলার আগে সিলটি সম্পূর্ণ অক্ষত ছিল তা নিশ্চিত করুন।',
-      );
+    'Before scanning Step 2, physically inspect the inner scratch-off tamper seal and micro-dot hologram. Confirm it was completely intact before you broke it.',
+    'ধাপ ২ স্ক্যান করার আগে ভেতরের স্ক্র্যাচ-অফ ট্যাম্পার সিল এবং মাইক্রো-ডট হলোগ্রামটি ভালোভাবে পরীক্ষা করুন। আপনি খোলার আগে সিলটি সম্পূর্ণ অক্ষত ছিল তা নিশ্চিত করুন।',
+  );
   String get sealIntactProceed => pick(
-        'Seal Was Intact — Scan Inner Tag',
-        'সিল অক্ষত ছিল — ভেতরের ট্যাগ স্ক্যান করুন',
-      );
-  String get sealTamperedFlag => pick(
-        'Seal Looks Broken / Scratched',
-        'সিল ভাঙা বা ঘষা মনে হচ্ছে',
-      );
+    'Seal Was Intact — Scan Inner Tag',
+    'সিল অক্ষত ছিল — ভেতরের ট্যাগ স্ক্যান করুন',
+  );
+  String get sealTamperedFlag =>
+      pick('Seal Looks Broken / Scratched', 'সিল ভাঙা বা ঘষা মনে হচ্ছে');
 
   // Result Card Fields
   String get factoryNameLabel => pick('Factory', 'কারখানা');
@@ -118,12 +141,12 @@ class AppStrings {
   String get latencyLabel => pick('Crypto Latency', 'ক্রিপ্টো সময়');
   String get transferOwnershipQr =>
       pick('Transfer Ownership QR', 'মালিকানা হস্তান্তর QR');
-  String get scanNextItem => pick('Scan Next Product', 'পরবর্তী পণ্য স্ক্যান করুন');
+  String get scanNextItem =>
+      pick('Scan Next Product', 'পরবর্তী পণ্য স্ক্যান করুন');
 
   // Mode display label
-  String modeLabel(ScanMode mode) => mode == ScanMode.consumerUnboxing
-      ? consumerModeTitle
-      : factoryModeTitle;
+  String modeLabel(ScanMode mode) =>
+      mode == ScanMode.consumerUnboxing ? consumerModeTitle : factoryModeTitle;
 
   // Offline status badge labels
   String offlineBadgeLabel(OfflineStatus status) {
@@ -165,39 +188,46 @@ class AppStrings {
 
   // History & Alerts Screens
   String get searchHistoryHint => pick(
-        'Search serial, batch ID, or factory...',
-        'সিরিয়াল, ব্যাচ বা কারখানা খুঁজুন...',
-      );
-  String get noHistoryTitle => pick('No Scans Recorded Yet', 'এখনো কোনো স্ক্যান হয়নি');
+    'Search serial, batch ID, or factory...',
+    'সিরিয়াল, ব্যাচ বা কারখানা খুঁজুন...',
+  );
+  String get noHistoryTitle =>
+      pick('No Scans Recorded Yet', 'এখনো কোনো স্ক্যান হয়নি');
   String get noHistorySubtitle => pick(
-        'Scan a product or run the offline demo simulator to see cryptographic audit logs here.',
-        'পণ্য স্ক্যান করুন অথবা অফলাইন ডেমো সিমুলেটর চালিয়ে ক্রিপ্টোগ্রাফিক অডিট লগ দেখুন।',
-      );
+    'Scan a product or run the offline demo simulator to see cryptographic audit logs here.',
+    'পণ্য স্ক্যান করুন অথবা অফলাইন ডেমো সিমুলেটর চালিয়ে ক্রিপ্টোগ্রাফিক অডিট লগ দেখুন।',
+  );
 
   String get alertsCenterTitle =>
       pick('Alerts & Feedback Center', 'সতর্কতা ও ফিডব্যাক কেন্দ্র');
-  String get noAlertsTitle => pick('All Clear — No Active Alerts', 'সব ঠিক আছে — কোনো সতর্কতা নেই');
+  String get noAlertsTitle =>
+      pick('All Clear — No Active Alerts', 'সব ঠিক আছে — কোনো সতর্কতা নেই');
   String get noAlertsSubtitle => pick(
-        'Retroactive clone detections and precision batch recalls from cloud cross-checks appear here.',
-        'অনলাইন ক্রস-চেক থেকে আসা ক্লোন শনাক্তকরণ এবং ব্যাচ রিকল বিজ্ঞপ্তি এখানে দেখা যাবে।',
-      );
-  String get syncNowButton => pick('Sync & Cross-Check Now', 'এখনই সিঙ্ক ও ক্রস-চেক করুন');
+    'Retroactive clone detections and precision batch recalls from cloud cross-checks appear here.',
+    'অনলাইন ক্রস-চেক থেকে আসা ক্লোন শনাক্তকরণ এবং ব্যাচ রিকল বিজ্ঞপ্তি এখানে দেখা যাবে।',
+  );
+  String get syncNowButton =>
+      pick('Sync & Cross-Check Now', 'এখনই সিঙ্ক ও ক্রস-চেক করুন');
   String get simulateCloudRecallButton => pick(
-        'Demo: Simulate Retroactive Clone/Recall Sync',
-        'ডেমো: রেট্রোঅ্যাক্টিভ ক্লোন/রিকল সিঙ্ক টেস্ট',
-      );
+    'Demo: Simulate Retroactive Clone/Recall Sync',
+    'ডেমো: রেট্রোঅ্যাক্টিভ ক্লোন/রিকল সিঙ্ক টেস্ট',
+  );
   String get markAllRead => pick('Mark All Read', 'সব পঠিত চিহ্নিত করুন');
 
   // History deletion
   String get deleteHistoryItem => pick('Delete Record', 'রেকর্ড মুছে ফেলুন');
-  String get clearAllHistory => pick('Clear All History', 'সব ইতিহাস মুছে ফেলুন');
-  String get confirmDeleteItem => pick('Delete this scan record?', 'এই স্ক্যান রেকর্ডটি মুছবেন?');
+  String get clearAllHistory =>
+      pick('Clear All History', 'সব ইতিহাস মুছে ফেলুন');
+  String get confirmDeleteItem =>
+      pick('Delete this scan record?', 'এই স্ক্যান রেকর্ডটি মুছবেন?');
   String get confirmClearAll => pick(
-        'Clear all scan history? This cannot be undone.',
-        'সব স্ক্যান ইতিহাস মুছবেন? এটি ফেরত আনার কোনো উপায় নেই।',
-      );
+    'Clear all scan history? This cannot be undone.',
+    'সব স্ক্যান ইতিহাস মুছবেন? এটি ফেরত আনার কোনো উপায় নেই।',
+  );
   String get deleteAction => pick('Delete', 'মুছে ফেলুন');
   String get cancelAction => pick('Cancel', 'বাতিল');
-  String get historyDeleted => pick('Record deleted', 'রেকর্ড মুছে ফেলা হয়েছে');
-  String get historyCleared => pick('History cleared', 'ইতিহাস মুছে ফেলা হয়েছে');
+  String get historyDeleted =>
+      pick('Record deleted', 'রেকর্ড মুছে ফেলা হয়েছে');
+  String get historyCleared =>
+      pick('History cleared', 'ইতিহাস মুছে ফেলা হয়েছে');
 }

@@ -24,6 +24,8 @@ class WellKnownController extends Controller
             'issuer' => 'TriProof AI',
             'algorithm' => 'Ed25519',
             'public_key_base64' => $publicBase64,
+            'public_key' => $publicBase64,
+            'universal_public_key' => $publicBase64,
             'key_fingerprint' => hash('sha256', $public),
             'key_id' => substr(hash('sha256', $public), 0, 32),
             'key_ring' => $ring,

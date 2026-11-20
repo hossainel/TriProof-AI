@@ -5,6 +5,7 @@ import 'package:triproof_ai_scanner/data/services/feedback_service.dart';
 import 'package:triproof_ai_scanner/domain/enums/app_language.dart';
 import 'package:triproof_ai_scanner/domain/enums/scan_mode.dart';
 import 'package:triproof_ai_scanner/ui/core/widgets/transfer_ownership_sheet.dart';
+import 'package:triproof_ai_scanner/ui/core/widgets/website_sync_card.dart';
 import 'package:triproof_ai_scanner/ui/core/widgets/verification_result_card.dart';
 import 'package:triproof_ai_scanner/ui/features/scanner/guided_scanner_screen.dart';
 import 'package:triproof_ai_scanner/ui/view_models/app_view_model.dart';
@@ -48,6 +49,20 @@ class HomeScannerScreen extends StatelessWidget {
                       _securityTelemetryStrip(isBn),
                       const SizedBox(height: 12),
 
+                      WebsiteSyncCard(
+                        strings: s,
+                        serverUrl: viewModel.serverBaseUrl,
+                        lastSyncedAt: viewModel.lastTrustSyncAt,
+                        trustedKeyCount: viewModel.trustedKeyCount,
+                        isSyncing: viewModel.isTrustSyncing,
+                        message: viewModel.trustSyncMessage,
+                        onUpdate: (url) => viewModel.refreshTrustFromWebsite(
+                          overrideBaseUrl: url,
+                        ),
+                        onUrlChanged: (_) {},
+                      ),
+                      const SizedBox(height: 12),
+
                       // Mode Switcher (Consumer Unboxing vs Factory Packing QA)
                       Text(
                         s.modeSectionTitle,
@@ -67,8 +82,9 @@ class HomeScannerScreen extends StatelessWidget {
                               subtitle: s.consumerModeDesc,
                               icon: Icons.shopping_bag_outlined,
                               selected: !isFactoryQa,
-                              onTap: () => viewModel
-                                  .setScanMode(ScanMode.consumerUnboxing),
+                              onTap: () => viewModel.setScanMode(
+                                ScanMode.consumerUnboxing,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -79,8 +95,9 @@ class HomeScannerScreen extends StatelessWidget {
                               subtitle: s.factoryModeDesc,
                               icon: Icons.factory_outlined,
                               selected: isFactoryQa,
-                              onTap: () => viewModel
-                                  .setScanMode(ScanMode.factoryPackingQa),
+                              onTap: () => viewModel.setScanMode(
+                                ScanMode.factoryPackingQa,
+                              ),
                             ),
                           ),
                         ],
@@ -98,6 +115,8 @@ class HomeScannerScreen extends StatelessWidget {
                         VerificationResultCard(
                           result: latest,
                           language: viewModel.language,
+                          onSyncTrust: () =>
+                              viewModel.refreshTrustFromWebsite(),
                           onTransferOwnership: () {
                             TransferOwnershipSheet.show(
                               context,
@@ -196,6 +215,7 @@ class HomeScannerScreen extends StatelessWidget {
   }
 
   Widget _securityTelemetryStrip(bool isBn) {
+    final s = viewModel.strings;
     final tokenShort = viewModel.deviceToken.isEmpty
         ? 'KEYSTORE...'
         : viewModel.deviceToken.substring(
@@ -225,6 +245,15 @@ class HomeScannerScreen extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF334155),
               ),
+            ),
+          ),
+          Chip(
+            key: const Key('trust_sync_chip'),
+            visualDensity: VisualDensity.compact,
+            avatar: const Icon(Icons.vpn_key_outlined, size: 13),
+            label: Text(
+              '${s.syncChipPrefix} ${viewModel.trustedKeyCount}',
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
             ),
           ),
           const Icon(
@@ -343,10 +372,7 @@ class HomeScannerScreen extends StatelessWidget {
                   isBn
                       ? 'একই প্যালেটে ডুপ্লিকেট সিরিয়াল পেলে তৎক্ষণাৎ অফলাইন অ্যালার্ট দেবে'
                       : 'Duplicate serials scanned in this pallet trigger instant offline alerts',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade700,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
                 ),
               ],
             ),
@@ -508,9 +534,8 @@ class HomeScannerScreen extends StatelessWidget {
                   subtitle: isBn
                       ? 'সঠিক Ed25519 স্বাক্ষর এবং +৩৬৫ দিন মেয়াদ'
                       : 'Valid Ed25519 signature, +365 days shelf life',
-                  onTap: () => viewModel.runDemoScenario(
-                    DemoScenario.genuineProduct,
-                  ),
+                  onTap: () =>
+                      viewModel.runDemoScenario(DemoScenario.genuineProduct),
                 ),
                 _simTile(
                   ctx,
@@ -539,9 +564,8 @@ class HomeScannerScreen extends StatelessWidget {
                   subtitle: isBn
                       ? 'সঠিক স্বাক্ষর কিন্তু ৫ দিন আগে মেয়াদ শেষ'
                       : 'Valid signature, expired 5 days ago',
-                  onTap: () => viewModel.runDemoScenario(
-                    DemoScenario.expiredProduct,
-                  ),
+                  onTap: () =>
+                      viewModel.runDemoScenario(DemoScenario.expiredProduct),
                 ),
                 _simTile(
                   ctx,

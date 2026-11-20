@@ -178,7 +178,7 @@ class SerialCryptoService
             $parts = parse_url($payload);
             $path = (string) ($parts['path'] ?? '');
             if (preg_match('~/v/(.+)$~', $path, $m)) {
-                $payload = urldecode($m[1]);
+                $payload = rawurldecode($m[1]);
             }
         }
 

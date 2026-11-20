@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Factory;
+use App\Models\SigningKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -40,9 +41,31 @@ class ApiFlowTest extends TestCase
     public function test_health_and_well_known_are_public(): void
     {
         $this->getJson('/api/v1/health')->assertOk()->assertJsonPath('data.status', 'ok');
-        $this->get('/.well-known/triproof-key.json')
+
+        $wellKnown = $this->get('/.well-known/triproof-key.json')
             ->assertOk()
-            ->assertJsonPath('data.algorithm', 'Ed25519');
+            ->assertJsonPath('data.algorithm', 'Ed25519')
+            ->json('data');
+
+        $this->assertCount(0, SigningKey::query()->get());
+        $this->assertSame('K00', $wellKnown['active_keys'][0]['key_version']);
+        $this->assertSame(config('triproof.crypto.public_key'), $wellKnown['public_key_base64']);
+        $this->assertSame(config('triproof.crypto.public_key'), $wellKnown['universal_public_key']);
+        $this->assertSame(config('triproof.crypto.public_key'), $wellKnown['public_key']);
+    }
+
+    public function test_public_trust_endpoints_allow_cors_without_authentication(): void
+    {
+        config(['cors.allowed_origins' => ['https://scanner.example.test']]);
+        $headers = ['Origin' => 'https://scanner.example.test'];
+
+        $this->getJson('/.well-known/triproof-key.json', $headers)
+            ->assertOk()
+            ->assertHeader('Access-Control-Allow-Origin', 'https://scanner.example.test');
+
+        $this->getJson('/api/v1/blacklist/delta', $headers)
+            ->assertOk()
+            ->assertHeader('Access-Control-Allow-Origin', 'https://scanner.example.test');
     }
 
     public function test_orders_require_a_valid_token(): void

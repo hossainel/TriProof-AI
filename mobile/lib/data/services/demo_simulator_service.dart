@@ -63,6 +63,11 @@ class DemoSimulatorService {
   static const String _demoHsmSeedBase64 =
       'ixPzGmiWcpKr66kmMRxcQfBG6acJB+WTlO3GrPXQur0=';
 
+  /// Public key derived from [_demoHsmSeedBase64]. Used only by the offline
+  /// demo simulator; production verification uses the server-provisioned ring.
+  static const String demoPublicKeyBase64 =
+      'a4dFK0VuPZWbOIMTcz0ZWFt4JMBZkhN9pFcxuzeaji4=';
+
   final Ed25519 _ed25519 = DartEd25519(sha512: const DartSha512());
   int _unitSequence = 482;
 
@@ -84,7 +89,8 @@ class DemoSimulatorService {
 
     switch (scenario) {
       case DemoScenario.genuineProduct:
-        final outer = fixedOuterSerial ??
+        final outer =
+            fixedOuterSerial ??
             'BD01-M04-B202611-$seq|$prodDate|${_formatDate(now.add(const Duration(days: 365)))}';
         final sig = await _signOuter(outer, keyPair);
         return DemoTagPair(
@@ -143,8 +149,7 @@ class DemoSimulatorService {
         final sig = await _signOuter(canonicalOuter, keyPair);
         // Simulate curved/smudged dot-matrix OCR read with broken pipes and O/0 glitch.
         final smudgedProd = prodDate.replaceFirst('0', 'O');
-        final degradedOcr =
-            'LOT: BD01-M08-B202611-$seq\nI $smudgedProd l $exp';
+        final degradedOcr = 'LOT: BD01-M08-B202611-$seq\nI $smudgedProd l $exp';
         return DemoTagPair(
           outerSerialOrOcr: degradedOcr,
           innerSerial: sig,
@@ -154,10 +159,7 @@ class DemoSimulatorService {
   }
 
   Future<String> _signOuter(String outer, SimpleKeyPair keyPair) async {
-    final signature = await _ed25519.sign(
-      utf8.encode(outer),
-      keyPair: keyPair,
-    );
+    final signature = await _ed25519.sign(utf8.encode(outer), keyPair: keyPair);
     return base64Encode(signature.bytes);
   }
 
@@ -221,10 +223,7 @@ class DemoMockCloudApiClient implements CloudApiClient {
       }
     }
 
-    return CrossCheckBatchResponse(
-      verdicts: verdicts,
-      serverTimeUtc: now,
-    );
+    return CrossCheckBatchResponse(verdicts: verdicts, serverTimeUtc: now);
   }
 
   @override

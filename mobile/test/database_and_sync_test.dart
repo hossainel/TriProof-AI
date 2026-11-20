@@ -27,6 +27,9 @@ void main() {
       final now = DateTime.utc(2026, 11, 18, 12, 0);
       keystoreService = SecureKeystoreService(store: InMemorySecureStore());
       await keystoreService.initialize(currentUtc: now);
+      await keystoreService.upsertPublicKeyRing({
+        'K00': DemoSimulatorService.demoPublicKeyBase64,
+      });
 
       dbHelper = createInMemoryDatabaseHelper(keystoreService);
       feedbackService = FakeFeedbackService();
@@ -62,82 +65,80 @@ void main() {
         () => dbHelper.upsertBlacklistEntries(oversized),
         throwsStateError,
       );
-      expect(
-        AppConstants.maxBlacklistPayloadBytes,
-        50 * 1024,
-      );
+      expect(AppConstants.maxBlacklistPayloadBytes, 50 * 1024);
     });
 
     test(
-        'uploads pending_sync scans and triggers retroactive clone alert + OS push notification',
-        () async {
-      final genuinePair = await demoSimulator.generateScenario(
-        DemoScenario.genuineProduct,
-      );
-      final offlineResult = await verificationRepository.verifyOffline(
-        outerSerial: genuinePair.outerSerialOrOcr,
-        innerSerial: genuinePair.innerSerial,
-        mode: ScanMode.consumerUnboxing,
-      );
+      'uploads pending_sync scans and triggers retroactive clone alert + OS push notification',
+      () async {
+        final genuinePair = await demoSimulator.generateScenario(
+          DemoScenario.genuineProduct,
+        );
+        final offlineResult = await verificationRepository.verifyOffline(
+          outerSerial: genuinePair.outerSerialOrOcr,
+          innerSerial: genuinePair.innerSerial,
+          mode: ScanMode.consumerUnboxing,
+        );
 
-      expect(offlineResult.record.cloudStatus, CloudStatus.pendingSync);
-      expect(await dbHelper.countPendingSync(), 1);
+        expect(offlineResult.record.cloudStatus, CloudStatus.pendingSync);
+        expect(await dbHelper.countPendingSync(), 1);
 
-      final serverTime = DateTime.utc(2026, 11, 18, 15, 30);
-      final fakeClient = FakeCloudApiClient(
-        serverTimeUtc: serverTime,
-        verdictBuilder: (records) => records
-            .map(
-              (r) => CrossCheckVerdictItem(
-                syncUuid: r.syncUuid,
-                verdict: 'clone_detected',
-              ),
-            )
-            .toList(),
-        incomingBlacklist: [
-          BlacklistEntry(
-            serialOrBatch: 'B2026NEWRECALL',
-            reason: 'Export hold lot',
-            updatedAt: serverTime,
-          ),
-        ],
-      );
+        final serverTime = DateTime.utc(2026, 11, 18, 15, 30);
+        final fakeClient = FakeCloudApiClient(
+          serverTimeUtc: serverTime,
+          verdictBuilder: (records) => records
+              .map(
+                (r) => CrossCheckVerdictItem(
+                  syncUuid: r.syncUuid,
+                  verdict: 'clone_detected',
+                ),
+              )
+              .toList(),
+          incomingBlacklist: [
+            BlacklistEntry(
+              serialOrBatch: 'B2026NEWRECALL',
+              reason: 'Export hold lot',
+              updatedAt: serverTime,
+            ),
+          ],
+        );
 
-      final syncRepo = SyncRepository(
-        keystoreService: keystoreService,
-        databaseHelper: dbHelper,
-        apiClient: fakeClient,
-        notificationService: notificationService,
-        feedbackService: feedbackService,
-      );
+        final syncRepo = SyncRepository(
+          keystoreService: keystoreService,
+          databaseHelper: dbHelper,
+          apiClient: fakeClient,
+          notificationService: notificationService,
+          feedbackService: feedbackService,
+        );
 
-      final outcome = await syncRepo.syncNow(language: AppLanguage.bangla);
-      expect(outcome.syncedCount, 1);
-      expect(outcome.retroactiveAlertsTriggered, 1);
-      expect(outcome.blacklistUpdatedCount, 1);
+        final outcome = await syncRepo.syncNow(language: AppLanguage.bangla);
+        expect(outcome.syncedCount, 1);
+        expect(outcome.retroactiveAlertsTriggered, 1);
+        expect(outcome.blacklistUpdatedCount, 1);
 
-      // Verify scan_history transitioned from pending_sync -> retroactive_clone_alert.
-      final updatedHistory = await dbHelper.getScanHistory();
-      expect(updatedHistory.length, 1);
-      expect(
-        updatedHistory.first.cloudStatus,
-        CloudStatus.retroactiveCloneAlert,
-      );
-      expect(
-        updatedHistory.first.feedbackMessageBn,
-        contains('ইতিপূর্বে অন্য ডিভাইসে ব্যবহৃত হয়েছে'),
-      );
+        // Verify scan_history transitioned from pending_sync -> retroactive_clone_alert.
+        final updatedHistory = await dbHelper.getScanHistory();
+        expect(updatedHistory.length, 1);
+        expect(
+          updatedHistory.first.cloudStatus,
+          CloudStatus.retroactiveCloneAlert,
+        );
+        expect(
+          updatedHistory.first.feedbackMessageBn,
+          contains('ইতিপূর্বে অন্য ডিভাইসে ব্যবহৃত হয়েছে'),
+        );
 
-      // Verify notifications_inbox + OS push notification triggered.
-      final inbox = await dbHelper.getNotifications();
-      expect(inbox.length, 1);
-      expect(notificationService.shown.length, 1);
+        // Verify notifications_inbox + OS push notification triggered.
+        final inbox = await dbHelper.getNotifications();
+        expect(inbox.length, 1);
+        expect(notificationService.shown.length, 1);
 
-      // Verify anti-clock-rollback High-Water Mark advanced to serverTime.
-      final hwm = await keystoreService.getHighWaterMark();
-      expect(hwm, serverTime);
+        // Verify anti-clock-rollback High-Water Mark advanced to serverTime.
+        final hwm = await keystoreService.getHighWaterMark();
+        expect(hwm, serverTime);
 
-      await syncRepo.dispose();
-    });
+        await syncRepo.dispose();
+      },
+    );
   });
 }

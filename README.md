@@ -2,6 +2,8 @@
 
 **Enterprise Supply-Chain Integrity & Anti-Counterfeiting Platform**
 
+**Current release: v2.1** — dynamic website trust sync, hardened QR normalization, and verified offline keys.
+
 TriProof AI protects high-risk consumer supply chains with quota-locked purchase orders, Ed25519-signed unit labels, offline-first verification, deterministic bilingual anomaly detection, precision recalls, rework lineage, and auditable Merkle roots. The platform serves global buyers, Bangladeshi factories, administrators, station verifiers, and end consumers across a Laravel web console, a versioned JSON API, and a Flutter mobile verifier.
 
 Documentation: [Architecture](ARCHITECTURE.md) · [API reference](docs/API.md) · [Checkpoint](CHECKPOINT.md) · [Mobile client](mobile/README.md) · [Database schema](schema.sql) · [Environment template](.env.example)
@@ -11,11 +13,24 @@ Documentation: [Architecture](ARCHITECTURE.md) · [API reference](docs/API.md) �
 - Ed25519 detached signatures over a canonical outer serial:
   `{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{PROD_DATE}|{EXP_DATE}`
 - Versioned key ring (`K00` legacy plus `K01+` active/verify-only keys), key rotation, buyer-scoped keys, and encrypted private material in `signing_keys`
-- Universal public key discovery at `/.well-known/triproof-key.json`
+- Universal public key discovery at `/.well-known/triproof-key.json`; the endpoint always publishes the configured legacy `K00` key, even when `signing_keys` is empty
+- Dynamic mobile trust sync from any TriProof website: key ring + blacklist delta, persisted in SQLCipher/Keystore, usable fully offline
 - SHA-256 unit hashes and deterministic binary Merkle roots with `0x01` domain separation and odd-node promotion
 - Daily local Merkle anchor receipts via `php artisan triproof:anchor-merkle`
 - `paragonie/sodium_compat` provides universal PHP 8.2+/8.4+ and cPanel compatibility; native `ext-sodium` is used when available
 - V2 serials append `|DPP:{8-HEX-DIGEST}` and may carry a `KNN-` prefix; legacy `K00` serials remain verifiable
+
+## Dynamic trust sync (v2.1)
+
+The Flutter verifier can point at any deployed TriProof website without rebuilding the APK:
+
+1. Enter or confirm the website URL in the **Update Offline Data from Website** card on the Home screen.
+2. The app fetches `/.well-known/triproof-key.json` and `/api/v1/blacklist/delta`.
+3. Active and verify-only Ed25519 keys are persisted in SQLCipher `app_meta` and provisioned into Android Keystore / iOS Keychain.
+4. Exact blacklist entries and the Bloom filter are replaced locally, then `last_trust_sync_at` is updated.
+5. Sync runs automatically on app initialization and when connectivity returns; the same operation is available manually from the card and verification-result screen.
+
+No JWT is required for the public trust endpoints. If no dynamic key matches a label, mobile verification still tries the compiled-in `UNIVERSAL_PUBLIC_KEY` fallback.
 
 ## Feature matrix
 
@@ -26,7 +41,7 @@ Documentation: [Architecture](ARCHITECTURE.md) · [API reference](docs/API.md) �
 | **Factory QA** | Row-locked atomic serial signing (`generate`); smart unit packing through `#pack-dialog` with live unpackaged counts and `#min–#max` range suggestions; QR sticker sheets; CSV/PDF manifests; parent-child rework lineage reconciliation |
 | **Verifier / Public** | `/verify` station verification and `GET /v/{payload}` smart-URL product passport pages |
 | **API** | `/api/v1` JWT API for login, orders, signing, packing, verification, blacklist deltas, notifications, cartons, rework, recalls, AI analysis, and health |
-| **Mobile verifier** | Offline Ed25519 verification with embedded universal key, SQLCipher-encrypted `scan_history`, duplicate/prior-owner caches, individual deletion and full Clear History with bilingual confirmations, GPS evidence, and background cloud sync |
+| **Mobile verifier** | Offline Ed25519 multi-key verification with embedded fallback key; editable website URL; auto/manual key-ring + blacklist sync; SQLCipher-encrypted `scan_history`; duplicate/prior-owner caches; individual deletion and full Clear History with bilingual confirmations; GPS evidence; background cloud sync |
 
 ## What it solves
 
@@ -115,14 +130,14 @@ npm run build
 php artisan view:clear && php artisan view:cache
 ```
 
-Use a dedicated MySQL-compatible test database (default `triproof_testing`). The suite covers signing, quota transactions, verification state transitions, admin CRUD, all modal round trips, packing suggestions, rework, AI fallback, API flows, and web authorization.
+Use a dedicated MySQL-compatible test database (default `triproof_testing`). The suite covers signing, quota transactions, verification state transitions, admin CRUD, all modal round trips, packing suggestions, rework, AI fallback, QR normalization, public trust key discovery/CORS, API flows, and web authorization. Current gates: **118 PHP tests / 1,006 assertions**, **29 Flutter tests**, Pint, Vite build, and Blade cache.
 
 ## Zero-SSH cPanel deployment
 
-The deployment archive `triproof-cpanel-deploy.zip` contains the Laravel web application, committed `public/build` assets, and Composer `vendor/` so the one-click installer works without SSH. It excludes `mobile/`, `node_modules/`, `.git/`, local `.env` files, and local test caches.
+The deployment archive `triproof-cpanel-deploy-v2.1.zip` contains the Laravel web application, committed `public/build` assets, and Composer `vendor/` so the one-click installer works without SSH. It excludes `mobile/`, `node_modules/`, `.git/`, local `.env` files, and local test caches.
 
 1. In cPanel, create the database and database user; note the database name, username, and `<YOUR_DB_PASSWORD>`.
-2. Upload `triproof-cpanel-deploy.zip` to the hosting account and extract it into the web root (or an application directory whose `public/` folder is the document root).
+2. Upload `triproof-cpanel-deploy-v2.1.zip` to the hosting account and extract it into the web root (or an application directory whose `public/` folder is the document root).
 3. Ensure the document root points to `public/`. If the host exposes the project root, use the included root `.htaccess` fallback.
 4. Create `.env` from `.env.example` and set `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL`, `DB_*`, session/cookie security, CORS origins, and the public verification key placeholder `<UNIVERSAL_PUBLIC_KEY>` if a pre-provisioned key is used.
 5. Make `storage/`, `storage/framework/*`, `bootstrap/cache/`, and `public/uploads/` writable by the web server user.
@@ -151,18 +166,21 @@ Migrations in `database/migrations/` are the source of truth. [schema.sql](schem
 
 ## Mobile client
 
-The offline verifier lives in [`mobile/`](mobile/README.md). It is a Flutter application (package `tripoof_ai_scanner`) for Android and iOS, not a native Kotlin project. Build it with:
+The offline verifier lives in [`mobile/`](mobile/README.md). It is a Flutter application (package `tripoof_ai_scanner`) for Android and iOS, not a native Kotlin project. **v2.1** adds editable website URLs and automatic/manual key-ring + blacklist sync. Build it with:
 
 ```bash
 cd mobile
 flutter pub get
-flutter analyze
+flutter analyze --no-fatal-infos
 flutter test
 flutter build apk --release --split-per-abi \
+  --build-name=2.1.0 --build-number=1 \
   --dart-define=API_BASE_URL=https://<YOUR_DOMAIN> \
   --dart-define=UNIVERSAL_PUBLIC_KEY=<UNIVERSAL_PUBLIC_KEY> \
   --dart-define=BUILD_EPOCH_MS=1763510400000
 ```
+
+Versioned APK artifacts are written to `mobile/build/app/outputs/flutter-apk/` as `app-arm64-v8a-release.apk`, `app-armeabi-v7a-release.apk`, and `app-x86_64-release.apk`.
 
 ## Project Team
 
