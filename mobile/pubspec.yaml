@@ -13,6 +13,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  cupertino_icons: ^1.0.8
 
   # Offline Ed25519 Cryptography & Hardware-Backed Keystore
   cryptography: ^2.9.0
@@ -55,4 +56,3 @@ flutter:
   assets:
     - assets/audio/chime_genuine.wav
     - assets/audio/alarm_alert.wav
-    - res/mipmap/ic_launcher.png

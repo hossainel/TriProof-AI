@@ -142,7 +142,7 @@ class BatchExportService
                 'exp_date' => $serial->exp_date?->toDateString() ?? '—',
                 'outer_url' => rtrim((string) config('app.url'), '/').'/v/'.$serial->outer_serial,
                 'outer_qr' => $this->qr(rtrim((string) config('app.url'), '/').'/v/'.$serial->outer_serial, EccLevel::M, 16),
-                'inner_qr' => $this->qr($serial->inner_serial, EccLevel::Q, 14),
+                'inner_qr' => $this->qr($serial->inner_serial, EccLevel::H, 14),
             ])->all(),
             'printedPairs' => $selected->count(),
             'totalPairs' => $total,
@@ -172,8 +172,11 @@ class BatchExportService
         $png = (new QRCode(new QROptions([
             'outputInterface' => QRGdImagePNG::class,
             'eccLevel' => $ecc,
+            'imageTransparent' => false,
+            'bgColor' => [255, 255, 255],
+            'addQuietzone' => true,
             'quietzoneSize' => 4,
-            'scale' => $scale,
+            'scale' => max(6, $scale),
             'outputBase64' => false,
         ])))->render($data);
 
