@@ -18,6 +18,40 @@ return [
 
     'alerts' => [
         'webhook_url' => env('ALERT_WEBHOOK_URL'),
+        'webhook_secret' => env('ALERT_WEBHOOK_SECRET'),
+    ],
+
+    'mcp' => [
+        'api_key' => env('MCP_API_KEY'),
+        'api_key_user_id' => env('MCP_API_KEY_USER_ID'),
+        'scope' => 'mcp:read',
+    ],
+
+    'graph' => [
+        'uri' => env('NEO4J_URI'),
+        'user' => env('NEO4J_USER', 'neo4j'),
+        'password' => env('NEO4J_PASSWORD'),
+        'database' => env('NEO4J_DATABASE', 'neo4j'),
+        'timeout' => (int) env('NEO4J_TIMEOUT', 10),
+    ],
+
+    'vectors' => [
+        'url' => env('VECTOR_DB_URL'),
+        'collection' => env('VECTOR_DB_COLLECTION', 'triproof_contextual'),
+        'timeout' => (int) env('VECTOR_DB_TIMEOUT', 10),
+    ],
+
+    'analytics' => [
+        'duckdb_path' => env('DUCKDB_PATH', storage_path('analytics/triproof.duckdb')),
+        'snapshot_dir' => env('ANALYTICS_SNAPSHOT_DIR', storage_path('analytics/snapshots')),
+    ],
+
+    'local_ai' => [
+        'provider' => strtolower((string) env('LOCAL_AI_PROVIDER', 'none')),
+        'ollama_url' => rtrim((string) env('OLLAMA_URL', 'http://127.0.0.1:11434'), '/'),
+        'llama_cpp_url' => rtrim((string) env('LLAMA_CPP_URL', 'http://127.0.0.1:8080/v1'), '/'),
+        'model' => env('LOCAL_AI_MODEL', 'qwen2.5:7b'),
+        'timeout' => (int) env('LOCAL_AI_TIMEOUT', 30),
     ],
 
     'jwt' => [
@@ -65,6 +99,7 @@ return [
         'verify' => (int) env('RATE_LIMIT_VERIFY', 600),
         'ai' => (int) env('RATE_LIMIT_AI', 20),
         'export' => (int) env('RATE_LIMIT_EXPORT', 30),
+        'mcp' => (int) env('RATE_LIMIT_MCP', 60),
     ],
 
     'factory' => [

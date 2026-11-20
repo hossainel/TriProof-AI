@@ -25,6 +25,59 @@ class AnomalyAnalysisService
         private readonly SerialCryptoService $crypto,
     ) {}
 
+    /**
+     * Answer a documentation/compliance question using grounded RAG chunks.
+     * Returns null when no AI provider is configured or the provider call fails,
+     * allowing callers to use the deterministic citation-backed fallback.
+     *
+     * @param  array<int, array<string, mixed>>  $chunks
+     * @return array<string, mixed>|null
+     */
+    public function groundedAnswer(string $question, array $chunks): ?array
+    {
+        if (! $this->ai->isConfigured() || $chunks === []) {
+            return null;
+        }
+
+        $context = collect($chunks)
+            ->map(fn (array $chunk, int $index): string => '['.($index + 1).'] '.($chunk['citation'] ?? 'source')."\n".($chunk['text'] ?? ''))
+            ->implode("\n\n");
+
+        $system = 'You are the TriProof AI compliance documentation assistant. '
+            .'Answer strictly from the grounded context provided. Never invent facts, keys, or endpoints. '
+            .'Return JSON with answer_en, answer_bn, and citations (array of source ids).';
+
+        $user = "Question: {$question}\n\nGrounded context:\n{$context}";
+
+        try {
+            $raw = $this->ai->chat($system, $user);
+        } catch (Throwable) {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+
+        if (is_array($decoded) && trim((string) ($decoded['answer_en'] ?? '')) !== '') {
+            $citations = $decoded['citations'] ?? null;
+
+            return [
+                'answer_en' => (string) $decoded['answer_en'],
+                'answer_bn' => (string) ($decoded['answer_bn'] ?? ''),
+                'citations' => is_array($citations) ? array_values($citations) : array_column($chunks, 'citation'),
+            ];
+        }
+
+        if (trim($raw) === '') {
+            return null;
+        }
+
+        return [
+            'answer_en' => $raw,
+            'answer_bn' => '',
+            'citations' => array_column($chunks, 'citation'),
+        ];
+    }
+
     public function recordClone(SerialRegistry $serial, string $claimedDeviceToken, string $currentDeviceToken, ?float $lat, ?float $lng): AiAnomalyReport
     {
         $entry = [

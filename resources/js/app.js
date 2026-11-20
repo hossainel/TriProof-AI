@@ -25,6 +25,7 @@ ready(() => {
     initLocaleSwitch();
     initChart();
     initMap();
+    initIntelligenceWidgets();
     initCopyButtons();
     initFormSubmissions();
 });
@@ -793,4 +794,102 @@ function initFormSubmissions() {
 
         closeTpDialog(dialog);
     });
+}
+
+/* ---------- Provenance & serial analytics widgets ---------- */
+function initIntelligenceWidgets() {
+    const lineageDataElement = byId('triproof-lineage-data');
+    const lineageSvg = byId('triproof-lineage-graph');
+
+    if (lineageDataElement && lineageSvg && window.d3) {
+        try {
+            const data = JSON.parse(lineageDataElement.textContent || '{}');
+            const nodes = (data.nodes || []).map((node) => ({ ...node }));
+            const links = (data.edges || []).map((edge) => ({ source: edge.from, target: edge.to, type: edge.type }));
+
+            const svg = d3.select(lineageSvg);
+            const width = lineageSvg.clientWidth || 600;
+            const height = lineageSvg.clientHeight || 256;
+            svg.selectAll('*').remove();
+
+            if (nodes.length === 0) {
+                svg.append('text')
+                    .attr('x', width / 2)
+                    .attr('y', height / 2)
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', '#64748b')
+                    .text('No lineage nodes available');
+            } else {
+                const link = svg.append('g').selectAll('line')
+                    .data(links)
+                    .join('line')
+                    .attr('stroke', '#94a3b8')
+                    .attr('stroke-width', 1.5);
+
+                const node = svg.append('g').selectAll('circle')
+                    .data(nodes)
+                    .join('circle')
+                    .attr('r', 7)
+                    .attr('fill', (d) => d.type === 'carton' ? '#0ea5e9' : '#10b981')
+                    .attr('stroke', '#ffffff')
+                    .attr('stroke-width', 2);
+
+                node.append('title').text((d) => d.id);
+
+                const simulation = d3.forceSimulation(nodes)
+                    .force('link', d3.forceLink(links).id((d) => d.id).distance(70))
+                    .force('charge', d3.forceManyBody().strength(-180))
+                    .force('center', d3.forceCenter(width / 2, height / 2));
+
+                simulation.on('tick', () => {
+                    link.attr('x1', (d) => d.source.x).attr('y1', (d) => d.source.y)
+                        .attr('x2', (d) => d.target.x).attr('y2', (d) => d.target.y);
+                    node.attr('cx', (d) => d.x).attr('cy', (d) => d.y);
+                });
+            }
+        } catch {
+            void 0;
+        }
+    }
+
+    const analyticsDataElement = byId('triproof-serial-analytics-data');
+    const analyticsChart = byId('triproof-serial-chart');
+
+    if (analyticsDataElement && analyticsChart && window.echarts) {
+        try {
+            const data = JSON.parse(analyticsDataElement.textContent || '{}');
+            const distribution = data.distribution || [];
+            const velocity = data.scan_velocity || [];
+            const chart = echarts.init(analyticsChart);
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { data: ['Serials', 'Scans'], bottom: 0 },
+                grid: { left: 40, right: 20, top: 20, bottom: 50 },
+                xAxis: {
+                    type: 'category',
+                    data: distribution.map((entry) => entry.label),
+                    axisLabel: { rotate: 30, fontSize: 10 },
+                },
+                yAxis: { type: 'value' },
+                series: [
+                    {
+                        name: 'Serials',
+                        type: 'bar',
+                        data: distribution.map((entry) => Number(entry.count || 0)),
+                        itemStyle: { color: '#10b981' },
+                    },
+                    {
+                        name: 'Scans',
+                        type: 'line',
+                        smooth: true,
+                        data: velocity.map((entry) => Number(entry.scans || 0)),
+                        itemStyle: { color: '#0ea5e9' },
+                    },
+                ],
+            });
+            window.addEventListener('resize', () => chart.resize());
+        } catch {
+            void 0;
+        }
+    }
 }

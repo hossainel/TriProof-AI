@@ -4,6 +4,7 @@ use App\Exceptions\AiResponseException;
 use App\Exceptions\AiUnavailableException;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Middleware\AuthenticateApi;
+use App\Http\Middleware\AuthenticateMcp;
 use App\Http\Middleware\EnsureDocsAccessible;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\OptionalApiAuth;
@@ -38,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'api.auth' => AuthenticateApi::class,
+            'mcp.auth' => AuthenticateMcp::class,
             'api.optional' => OptionalApiAuth::class,
             'role' => EnsureRole::class,
             'docs.accessible' => EnsureDocsAccessible::class,

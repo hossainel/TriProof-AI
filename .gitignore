@@ -23,5 +23,8 @@ Homestead.yaml
 Thumbs.db
 
 /op.sh
+/build/
+/dist/
+.env.testing
 *.zip
 *.apk

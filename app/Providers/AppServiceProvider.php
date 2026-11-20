@@ -90,5 +90,9 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('triproof-export', fn (Request $request) => Limit::perMinute(
             (int) config('triproof.rate_limits.export', 30)
         )->by('export:'.($request->user()?->id ?? $request->ip()))->response($response));
+
+        RateLimiter::for('triproof-mcp', fn (Request $request) => Limit::perMinute(
+            (int) config('triproof.rate_limits.mcp', 60)
+        )->by('mcp:'.($request->user()?->id ?? $request->ip()))->response($response));
     }
 }

@@ -15,6 +15,8 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\Crypto\MasterKeyService;
 use App\Services\Crypto\SerialCryptoService;
+use App\Services\ProvenanceGraphService;
+use App\Services\SerialGapAnalyticsService;
 use App\Support\DeviceToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +28,10 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         $data = $this->overview($user, $crypto, $keys);
+        $data['intelligence'] = [
+            'lineage' => app(ProvenanceGraphService::class)->dashboardPayload($user),
+            'serials' => app(SerialGapAnalyticsService::class)->dashboardPayload($user),
+        ];
 
         return match ($user->role) {
             UserRole::Admin => view('dashboard.admin', $data),

@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "triproof": {
+      "command": "node",
+      "args": ["mcp-server/bridge.js"],
+      "env": {
+        "MCP_TRANSPORT": "stdio",
+        "TRIPROOF_BASE_URL": "https://t.focusautomobiles.com",
+        "TRIPROOF_MCP_API_KEY": "${TRIPROOF_MCP_API_KEY}"
+      }
+    },
+    "triproof-http": {
+      "url": "https://t.focusautomobiles.com/api/v1/mcp",
+      "headers": {
+        "X-TriProof-Api-Key": "${TRIPROOF_MCP_API_KEY}",
+        "Accept": "application/json, text/event-stream"
+      }
+    }
+  }
+}

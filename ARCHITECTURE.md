@@ -209,7 +209,7 @@ For each scan keyed by `sync_uuid`:
 5. Verdict precedence: `forged_signature` → `recalled_batch` → `expired` → first claim `verified_clean` → same-device `owner_repeat_ok` → store grace `store_grace_ok` (≤300 seconds and ≤100 metres) → `clone_detected`.
 6. Clones flag the serial, notify both devices, create bilingual in-app alerts and an optional webhook, and upsert an AI anomaly report.
 
-Web `/verify` is read-only inspection; it never claims ownership. Cloud cross-check is authoritative for claim, recall, expiry, and clone state.
+Web `/verify` is read-only inspection; it never claims ownership. Cloud cross-check is authoritative for claim, recall, expiry, and clone state. The shared read-only inspection path (used by `/verify`, `POST /api/v1/ai/analyze`, and MCP `verify_serial`) runs a deterministic 7-stage state machine: normalize, parse, resolve key ring, verify signature, registry lookup, recall/expiry/clone flags, and scan-history replay check. Raw smart URLs and `TP1:` inner payloads are normalized before comparison; no optional AI, graph, vector, or OLAP service is involved.
 
 ## 9. API surface
 
@@ -280,7 +280,7 @@ Connectivity transitions also trigger store-and-forward sync: upload pending sca
 
 Zero-SSH cPanel workflow:
 
-1. Upload `triproof-cpanel-deploy-v2.1.zip` (web app only; excludes `mobile/` and `node_modules/`).
+1. Upload `dist/triproof-ai-cpanel.zip` (web app only; excludes `mobile/` and `node_modules/`).
 2. Extract into the web root or an app directory with `public/` as document root.
 3. Configure `.env` with placeholders for database credentials, domain, and public key.
 4. Make `storage/`, `storage/framework/*`, `bootstrap/cache/`, and `public/uploads/` writable.
@@ -298,3 +298,8 @@ VPS deployments run the equivalent Composer, npm, key, migration, seeder, and op
 - V2 is additive: legacy `K00` serials, the `logs` cross-check envelope, mobile endpoints, demo trust root, and English `O1/I1` sticker sheets remain compatible.
 - Key rotation, DPP digests, carton Merkle proofs, offline Bloom warnings, device attestation, local anchors, webhooks, and smart-URL passports extend V1 without breaking existing clients.
 - v2.1 adds runtime trust discovery for installable APKs: keys/blacklist can follow any deployed website without a rebuild, while the compile-time universal key remains the last-resort fallback. QR normalization accepts raw smart URLs and `TP1:`-prefixed inner payloads before signature verification.
+- A native read-only MCP server (`POST /api/v1/mcp`) maps JSON-RPC tools onto existing verification, Merkle, anomaly, and documentation services behind JWT auth and a dedicated rate limiter.
+- `ComplianceRagService` builds contextual, variable-length semantic chunks from repository docs, live `doc_sections`, anomalies, and recalls; TF-IDF retrieval with metadata boosting feeds grounded chunks into `AnomalyAnalysisService` and the `POST /api/v1/ai/ask-docs` endpoint with a deterministic citation-backed fallback.
+- The MCP surface exposes five read-only tools behind `mcp:read` JWT/API-key scope; `McpToolService` owns deterministic verification, anomaly, lineage, recall, and Merkle-proof logic.
+- `ProvenanceGraphService` syncs factories, POs, cartons, serial rework links, and scans to Neo4j when configured, otherwise computing blast-radius subgraphs with SQL recursive CTEs. `ContextualRagService` adds contextual headers and hybrid BM25/dense retrieval over SOP and GS1 corpora with optional Qdrant-compatible vector store.
+- `SerialGapAnalyticsService` exports immutable NDJSON/Parquet snapshots for DuckDB and computes `N_hat = m + (m/k) - 1` in pure PHP so verification tables are never locked; `AiExplanationService` adds Ollama/llama.cpp runtimes with deterministic bilingual fallback.

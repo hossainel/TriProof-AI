@@ -2,11 +2,11 @@
 
 **Enterprise Supply-Chain Integrity & Anti-Counterfeiting Platform**
 
-**Current release: v2.1** — dynamic website trust sync, hardened QR normalization, and verified offline keys.
+**Current release: v2.1** — dynamic website trust sync, hardened QR normalization, verified offline keys, a read-only MCP server, contextual/graph RAG, provenance analytics, and air-gapped bilingual AI.
 
 TriProof AI protects high-risk consumer supply chains with quota-locked purchase orders, Ed25519-signed unit labels, offline-first verification, deterministic bilingual anomaly detection, precision recalls, rework lineage, and auditable Merkle roots. The platform serves global buyers, Bangladeshi factories, administrators, station verifiers, and end consumers across a Laravel web console, a versioned JSON API, and a Flutter mobile verifier.
 
-Documentation: [Architecture](ARCHITECTURE.md) · [API reference](docs/API.md) · [Checkpoint](CHECKPOINT.md) · [Mobile client](mobile/README.md) · [Database schema](schema.sql) · [Environment template](.env.example)
+Documentation: [Architecture](ARCHITECTURE.md) · [API reference](docs/API.md) · [MCP server](docs/MCP.md) · [Setup & deployment](docs/DEPLOYMENT.md) · [Factory SOPs](docs/SOP.md) · [GS1 compliance](docs/GS1-COMPLIANCE.md) · [Checkpoint](CHECKPOINT.md) · [Mobile client](mobile/README.md) · [Database schema](schema.sql) · [Environment template](.env.example)
 
 ## Cryptographic core
 
@@ -134,10 +134,10 @@ Use a dedicated MySQL-compatible test database (default `triproof_testing`). The
 
 ## Zero-SSH cPanel deployment
 
-The deployment archive `triproof-cpanel-deploy-v2.1.zip` contains the Laravel web application, committed `public/build` assets, and Composer `vendor/` so the one-click installer works without SSH. It excludes `mobile/`, `node_modules/`, `.git/`, local `.env` files, and local test caches.
+The deployment archive `dist/triproof-ai-cpanel.zip` contains the Laravel web application, committed `public/build` assets, and Composer `vendor/` so the one-click installer works without SSH. It excludes `mobile/`, `node_modules/`, `.git/`, local `.env` files, and local test caches.
 
 1. In cPanel, create the database and database user; note the database name, username, and `<YOUR_DB_PASSWORD>`.
-2. Upload `triproof-cpanel-deploy-v2.1.zip` to the hosting account and extract it into the web root (or an application directory whose `public/` folder is the document root).
+2. Upload `dist/triproof-ai-cpanel.zip` to the hosting account and extract it into the web root (or an application directory whose `public/` folder is the document root).
 3. Ensure the document root points to `public/`. If the host exposes the project root, use the included root `.htaccess` fallback.
 4. Create `.env` from `.env.example` and set `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL`, `DB_*`, session/cookie security, CORS origins, and the public verification key placeholder `<UNIVERSAL_PUBLIC_KEY>` if a pre-provisioned key is used.
 5. Make `storage/`, `storage/framework/*`, `bootstrap/cache/`, and `public/uploads/` writable by the web server user.
@@ -191,6 +191,15 @@ Versioned APK artifacts are written to `mobile/build/app/outputs/flutter-apk/` a
 | **Remon Islam** | AI & ML Engineer |
 | **Masrurul Hasan Maktum** | Developer & Tester |
 | **Golam Rabbani** | DevOps Engineer |
+
+## AI, MCP & grounded documentation
+
+- `POST /api/v1/mcp` exposes a read-only JSON-RPC 2.0 MCP server with five tools: 7-stage `verify_serial`, `get_batch_anomalies`, `trace_rework_lineage`, `check_recall_status`, and `get_merkle_proof`. A stdio/Streamable HTTP bridge and `mcp.json` are included.
+- `POST /api/v1/ai/ask-docs` answers documentation and compliance questions using contextual, semantically chunked retrieval over README, architecture, API reference, live docs sections, and recent operational records.
+- `ComplianceRagService` uses TF-IDF/keyword overlap with metadata boosting; `ContextualRagService` adds Anthropic-style context headers, semantic chunking, BM25 + dense retrieval over factory SOPs and GS1 guidelines.
+- `ProvenanceGraphService` mirrors provenance to Neo4j when configured and falls back to SQL recursive CTEs; `SerialGapAnalyticsService` exports snapshots for DuckDB and computes German Tank estimates without locking MySQL.
+- `AiExplanationService` supports Ollama, llama.cpp, and deterministic bilingual fallback; alert webhooks are HMAC-SHA256 signed and an n8n workflow template is provided.
+- MCP requires `mcp:read` scope via JWT or API key; all services remain deterministic when external AI/graph/vector/OLAP systems are disabled. Private signing keys are never returned.
 
 ## Security notes
 

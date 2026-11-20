@@ -31,6 +31,7 @@ class JwtService
             'jti' => (string) Str::uuid(),
             'typ' => 'access',
             'role' => $user->role->value,
+            'scopes' => ['mcp:read'],
         ];
 
         $token = JWT::encode($claims, $secret, 'HS256');

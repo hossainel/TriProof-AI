@@ -1,0 +1,131 @@
+{
+  "name": "TriProof AI — Clone Alert (HMAC verified, bilingual)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "triproof-clone-alert",
+        "options": {}
+      },
+      "id": "triproof-webhook",
+      "name": "TriProof Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst signature = String($json.headers['x-triproof-signature'] || '');\nconst secret = String($env.TRIPROOF_WEBHOOK_SECRET || '');\nconst body = JSON.stringify($json.body);\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(body).digest('hex');\nconst valid = signature.length === expected.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));\nreturn [{ json: { ...$json.body, signature_valid: valid } }];"
+      },
+      "id": "triproof-verify",
+      "name": "Verify HMAC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "version": 2 },
+          "conditions": [
+            {
+              "id": "severity",
+              "leftValue": "={{ $json.context.severity }}",
+              "rightValue": "high",
+              "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "id": "signature",
+              "leftValue": "={{ $json.signature_valid }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "triproof-severity",
+      "name": "Severity Filter",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const c = $json.context || {};\nreturn [{ json: {\n  slack: `:rotating_light: *TriProof clone alert* — batch ${c.batch_id || 'unknown'}\\n${c.explanation_en || ''}\\n${c.explanation_bn || ''}`,\n  telegram: `🚨 TriProof ক্লোন সতর্কতা\\n${c.explanation_bn || ''}\\n${c.explanation_en || ''}`,\n  emailSubject: `[TriProof] Clone alert — ${c.batch_id || 'unknown'}`,\n  emailBody: `${c.explanation_en || ''}\\n\\n${c.explanation_bn || ''}\\n\\nAction: ${c.action_en || ''}`\n} }];"
+      },
+      "id": "triproof-format",
+      "name": "Bilingual Formatter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.slack }) }}",
+        "options": {}
+      },
+      "id": "triproof-slack",
+      "name": "Slack Dispatch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_CHAT_ID, text: $json.telegram }) }}",
+        "options": {}
+      },
+      "id": "triproof-telegram",
+      "name": "Telegram Dispatch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "subject": "={{ $json.emailSubject }}",
+        "message": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "id": "triproof-email",
+      "name": "Email Dispatch",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1120, 600]
+    }
+  ],
+  "connections": {
+    "TriProof Webhook": {
+      "main": [[{ "node": "Verify HMAC", "type": "main", "index": 0 }]]
+    },
+    "Verify HMAC": {
+      "main": [[{ "node": "Severity Filter", "type": "main", "index": 0 }]]
+    },
+    "Severity Filter": {
+      "main": [
+        [{ "node": "Bilingual Formatter", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Bilingual Formatter": {
+      "main": [
+        [
+          { "node": "Slack Dispatch", "type": "main", "index": 0 },
+          { "node": "Telegram Dispatch", "type": "main", "index": 0 },
+          { "node": "Email Dispatch", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

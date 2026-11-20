@@ -7,10 +7,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\AiAnalyzeRequest;
 use App\Services\Ai\AiClient;
 use App\Services\Ai\AnomalyAnalysisService;
+use App\Services\Ai\ComplianceRagService;
 use App\Services\ReworkService;
 use App\Services\VerificationService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AiController extends Controller
 {
@@ -72,6 +74,25 @@ class AiController extends Controller
             $analysisData['findings'] === 0
                 ? 'Analysis completed; no new anomaly clusters crossed the reporting threshold.'
                 : "Analysis completed with {$analysisData['findings']} anomaly cluster(s)."
+        );
+    }
+
+    public function askDocs(Request $request, ComplianceRagService $rag): JsonResponse
+    {
+        $validated = $request->validate([
+            'question' => ['required', 'string', 'max:1000'],
+            'limit' => ['sometimes', 'integer', 'min:1', 'max:10'],
+        ]);
+
+        $answer = $rag->answer(
+            (string) $validated['question'],
+            $request->user(),
+            (int) ($validated['limit'] ?? 5)
+        );
+
+        return ApiResponse::success(
+            $answer,
+            $answer['ai_used'] ? 'AI-grounded answer generated.' : 'Citation-backed deterministic answer generated.'
         );
     }
 }

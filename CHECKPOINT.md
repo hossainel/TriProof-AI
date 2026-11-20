@@ -15,6 +15,9 @@ Enterprise V2, operational web-console hardening, and the **v2.1 dynamic trust-s
 - **V2 core:** versioned key ring and rotation, DPP digests, carton Merkle proofs, offline Bloom warnings, device attestation and `scan_seq` replay protection, local Merkle anchor receipts, optional webhook alerts, and public `/v/{payload}` passports.
 - **v2.1 public trust contract:** `/.well-known/triproof-key.json` always publishes the configured legacy `K00` key even when `signing_keys` is empty, exposing `public_key_base64` / `public_key` / `universal_public_key` aliases, `key_ring`, `active_keys`, and `verify_only_keys`; public trust endpoints allow configured CORS origins without authentication.
 - **v2.1 QR hardening:** verification normalizes smart URLs and `TP1:`-prefixed inner payloads before comparing canonical outer serials; exact web/API QR payload regression coverage is in `tests/Feature/QrStickerTest.php`.
+- **AI/MCP layer:** authenticated read-only `POST /api/v1/mcp` JSON-RPC server with five deterministic tools, stdio/HTTP bridge, `mcp.json`, and `docs/MCP.md`; grounded `POST /api/v1/ai/ask-docs` RAG endpoint with semantic chunking, BM25/dense retrieval, citations, and deterministic fallback.
+- **Provenance & analytics:** Neo4j graph sync with SQL recursive-CTE fallback, contextual RAG over SOP/GS1 corpora, DuckDB snapshot export with German Tank estimates, HMAC-signed webhooks with n8n workflow, and D3/ECharts dashboard widgets.
+- **Edge AI:** `AiExplanationService` supports Ollama and llama.cpp with automatic deterministic bilingual fallback for air-gapped factories.
 
 ## Delivered mobile features
 
@@ -30,15 +33,17 @@ Enterprise V2, operational web-console hardening, and the **v2.1 dynamic trust-s
 
 ## Verification gates
 
-- Laravel: full PHPUnit suite passing — **118 tests, 1,006 assertions**, no warnings
+- Laravel: full PHPUnit suite passing — **142 tests, 1,161 assertions**, no warnings
 - Code style: `vendor/bin/pint --test` passing
 - Assets: `npm run build` passing; committed `public/build/manifest.json` refreshed before packaging
 - Blade: `php artisan view:clear && php artisan view:cache` passing before packaging
 - Modal contract: `tests/Feature/AllModalsVerificationTest.php` verifies markup, triggers, close buttons, CSRF, exact `dialog_id`, admin `active_tab`, success round trips, error round trips, scoped `old()` values, and body auto-open guards for every modal
 - Trust contract: `tests/Feature/ApiFlowTest.php` verifies public K00 discovery with an empty key table, response aliases, and unauthenticated CORS preflight
 - QR contract: `tests/Feature/QrStickerTest.php` verifies exact smart-URL and `TP1:` payloads through both web and API verification paths
+- MCP contract: `tests/Feature/McpServerTest.php` verifies `mcp:read` JWT/API-key auth and tools/call for all five deterministic tools
+- Intelligence contracts: `tests/Feature/IntelligenceServicesTest.php`, `tests/Feature/WebhookSigningTest.php`, and `tests/Unit/SerialGapAnalyticsTest.php` verify graph/RAG fallbacks, HMAC signing, and German Tank math
 - Flutter: `flutter analyze --no-fatal-infos` (no errors or warnings; remaining info-level lints) and **29 tests** passing for the verifier package
-- Release artifacts: Android v2.1 APKs and `triproof-cpanel-deploy-v2.1.zip`, generated from this milestone; APK outputs remain `app-arm64-v8a-release.apk`, `app-armeabi-v7a-release.apk`, and `app-x86_64-release.apk`
+- Release artifacts: universal `mobile/build/app/outputs/flutter-apk/app-release.apk`, split ABI APKs, and `dist/triproof-ai-cpanel.zip` / `.tar.gz`, generated from this milestone; cPanel archives include preinstalled production-only `vendor/` and `CPANEL_DEPLOY.txt`
 
 ## Bloom / offline-package constraint
 

@@ -73,6 +73,7 @@
 
     <div class="mt-6">
         @include('partials.chart-map')
+    @include('partials.intelligence-widgets')
     </div>
 
     <section id="anomalies" class="card mt-6 overflow-hidden">

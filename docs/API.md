@@ -182,8 +182,9 @@ Common codes: `insufficient_quota`, `serial_conflict`, `unit_conflict`, `factory
 | `triproof-verify` | 600/min | Verification endpoints |
 | `triproof-ai` | 20/min | AI analysis |
 | `triproof-export` | 30/min | CSV/PDF export |
+| `triproof-mcp` | 60/min | MCP JSON-RPC endpoint |
 
-Keys are authenticated user ID when present, otherwise client IP. Overrides: `RATE_LIMIT_LOGIN`, `RATE_LIMIT_API`, `RATE_LIMIT_VERIFY`, `RATE_LIMIT_AI`, `RATE_LIMIT_EXPORT`.
+Keys are authenticated user ID when present, otherwise client IP. Overrides: `RATE_LIMIT_LOGIN`, `RATE_LIMIT_API`, `RATE_LIMIT_VERIFY`, `RATE_LIMIT_AI`, `RATE_LIMIT_EXPORT`, `RATE_LIMIT_MCP`.
 
 ## Roles and scoping
 
@@ -221,6 +222,8 @@ Keys are authenticated user ID when present, otherwise client IP. Overrides: `RA
 | POST | `/notifications/mark-read` | Bearer | Mark notices read |
 | POST | `/verify/transfer-ticket` | Bearer | Ownership transfer ticket |
 | POST | `/ai/analyze` | Bearer + AI throttle | Anomaly analysis and optional OCR |
+| POST | `/ai/ask-docs` | Bearer + AI throttle | Grounded compliance/docs Q&A |
+| POST | `/mcp` | JWT `mcp:read` or API key | Five read-only MCP tools |
 | GET | `/.well-known/triproof-key.json` | Public | Public key ring and trust contract |
 | GET | `/v/{payload}` | Public web | Product passport page |
 
@@ -344,6 +347,8 @@ Public/optional Bearer. Anonymous callers are treated as a `GlobalBuyer` actor. 
 ```
 
 Batched requests use `logs: [...]` with distinct `sync_uuid` values. Responses use `data.results`, `data.feedback_notifications`, and `data.summary`. Replaying a `sync_uuid` returns the stored result with `duplicate: true`.
+
+Payloads are canonicalized before verification: raw `/v/{OUTER_SERIAL}` smart URLs and `TP1:`-prefixed inner payloads are normalized to the canonical outer serial and compared before Ed25519 verification. The offline verifier runs the same 7-stage deterministic state machine: normalize, parse, resolve key ring, verify signature, registry lookup, recall/expiry/clone flags, and scan-history replay check. The MCP `verify_serial` tool exposes this same engine.
 
 Verdict precedence:
 
@@ -506,6 +511,37 @@ Public web page. Renders a product passport and DPP scorecard from a signed oute
 - Local Merkle anchor receipts use `TRIPROOF-ANCHOR|{date}|{root}|{poIds}`; the API compatibility field remains `pending_phase_2`.
 - v2.1 mobile trust sync consumes the public key-ring and blacklist-delta endpoints directly; installing a new build is not required when the trusted key ring rotates.
 - v2.1 verification accepts raw `/v/{OUTER_SERIAL}` smart URLs and `TP1:`-prefixed inner payloads, then compares the canonical outer serial before Ed25519 verification.
+
+## MCP & grounded documentation Q&A (v2.1)
+
+All endpoints below require either `Authorization: Bearer <JWT>` with the `mcp:read` scope or `X-TriProof-Api-Key`, and are rate limited. They are strictly read-only and never expose private signing material. See [docs/MCP.md](MCP.md) for transports and the standalone bridge.
+
+### `POST /api/v1/mcp`
+
+Native JSON-RPC 2.0 MCP server. Supported methods:
+
+- `initialize` — advertises `triproof-ai-mcp` v2.1.0 and tool capabilities.
+- `tools/list` — returns five tools: `verify_serial`, `get_batch_anomalies`, `trace_rework_lineage`, `check_recall_status`, `get_merkle_proof`.
+- `tools/call` — invokes a tool with `params: { "name": "…", "arguments": { … } }` and returns an MCP content result with `isError`.
+
+Tools run the deterministic 7-stage verification state machine, query bilingual anomaly reports, traverse rework/carton lineage, check recall/blacklist state, and compute SHA-256 Merkle inclusion proofs with daily anchor receipts.
+
+```bash
+curl -sS -X POST "$BASE/mcp" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"verify_serial","arguments":{"payload_or_serial":"K00-DHK04-M01-B01-000001|20261120|20271120"}}}' | jq
+```
+
+### `POST /api/v1/ai/ask-docs`
+
+Contextual + semantic-chunked RAG over `README.md`, `ARCHITECTURE.md`, `docs/API.md`, visible `doc_sections`, recent anomaly reports, and recall events. Request body:
+
+```json
+{ "question": "How is quota enforced?", "limit": 5 }
+```
+
+The response includes `answer_en`, `answer_bn`, `citations`, and the grounded `chunks`. When `AI_PROVIDER=none` (or the provider call fails), a deterministic citation-backed answer is returned with `ai_used: false`.
 
 ## cURL quick start
 

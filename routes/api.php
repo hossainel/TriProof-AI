@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\BlacklistDeltaController;
 use App\Http\Controllers\Api\CartonController;
 use App\Http\Controllers\Api\DeviceAttestationController;
 use App\Http\Controllers\Api\HealthController;
+use App\Http\Controllers\Api\McpController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OfflineBlacklistController;
 use App\Http\Controllers\Api\PackingController;
@@ -51,10 +52,15 @@ Route::middleware(['api.auth', 'throttle:triproof-verify'])->group(function () {
     Route::post('/verify/transfer-ticket', [VerificationController::class, 'transferTicket']);
 });
 
+Route::middleware(['mcp.auth', 'throttle:triproof-mcp'])->group(function () {
+    Route::post('/mcp', McpController::class);
+});
+
 Route::middleware(['api.auth', 'throttle:triproof-export'])->group(function () {
     Route::get('/orders/{po}/export', [PurchaseOrderController::class, 'export'])->name('api.orders.export');
 });
 
 Route::middleware(['api.auth', 'throttle:triproof-ai'])->group(function () {
     Route::post('/ai/analyze', [AiController::class, 'analyze']);
+    Route::post('/ai/ask-docs', [AiController::class, 'askDocs']);
 });
