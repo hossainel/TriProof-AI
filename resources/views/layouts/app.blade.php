@@ -15,7 +15,9 @@
     }
     if ($user->isAdmin()) {
         $adminActive = request()->routeIs('admin.manage');
+        $docsActive = request()->routeIs('admin.docs.*');
         $adminLinks = [
+            ['label' => 'Documentation Studio', 'url' => route('admin.docs.index'), 'icon' => 'shield', 'active' => $docsActive],
             ['label' => __('triproof.admin.buyers.title'), 'url' => route('admin.manage').'#admin-buyers', 'icon' => 'users', 'hash' => 'admin-buyers'],
             ['label' => __('triproof.admin.factories.title'), 'url' => route('admin.manage').'#admin-factories', 'icon' => 'factory', 'hash' => 'admin-factories'],
             ['label' => __('triproof.admin.operators.title'), 'url' => route('admin.manage').'#admin-operators', 'icon' => 'shield', 'hash' => 'admin-operators'],
@@ -99,7 +101,7 @@
             @if ($user->isAdmin() && isset($adminLinks))
                 <p class="nav-group-title">{{ __('triproof.admin.nav_group') }}</p>
                 @foreach ($adminLinks as $item)
-                    <a href="{{ $item['url'] }}" class="nav-link {{ $adminActive ? 'nav-link-active' : '' }}" data-sidebar-hash="{{ $item['hash'] }}">
+                    <a href="{{ $item['url'] }}" class="nav-link {{ ($item['active'] ?? false) || ($adminActive && !empty($item['hash'])) ? 'nav-link-active' : '' }}" @if(!empty($item['hash'])) data-sidebar-hash="{{ $item['hash'] }}" @endif>
                         <x-icon :name="$item['icon']" class="h-[18px] w-[18px]" />
                         <span>{{ $item['label'] }}</span>
                     </a>

@@ -4,6 +4,7 @@ use App\Exceptions\AiResponseException;
 use App\Exceptions\AiUnavailableException;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Middleware\AuthenticateApi;
+use App\Http\Middleware\EnsureDocsAccessible;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\OptionalApiAuth;
 use App\Http\Middleware\SecurityHeaders;
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.auth' => AuthenticateApi::class,
             'api.optional' => OptionalApiAuth::class,
             'role' => EnsureRole::class,
+            'docs.accessible' => EnsureDocsAccessible::class,
         ]);
 
         $middleware->web(append: [

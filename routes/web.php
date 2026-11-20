@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\Api\WellKnownController;
 use App\Http\Controllers\Web\AdminDirectoryController;
+use App\Http\Controllers\Web\AdminDocsController;
 use App\Http\Controllers\Web\AiController as WebAiController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\DocsController;
 use App\Http\Controllers\Web\LanguageController;
 use App\Http\Controllers\Web\OrderController;
 use App\Http\Controllers\Web\PublicPageController;
@@ -26,6 +28,12 @@ Route::get('/language/{locale}', [LanguageController::class, 'change'])->name('l
 Route::get('/v/{payload}', PublicPassportController::class)
     ->middleware('throttle:triproof-api')
     ->name('public.passport');
+
+Route::prefix('docs')->middleware('docs.accessible')->group(function () {
+    Route::get('/', [DocsController::class, 'index'])->name('docs.index');
+    Route::get('/export/pdf', [DocsController::class, 'exportPdf'])->name('docs.export.pdf');
+    Route::get('/export/markdown', [DocsController::class, 'exportMarkdown'])->name('docs.export.markdown');
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -81,5 +89,15 @@ Route::middleware('auth')->group(function () {
         Route::delete('/operators/{user}', [AdminDirectoryController::class, 'destroyOperator'])->name('operators.destroy');
 
         Route::put('/settings', [AdminDirectoryController::class, 'updateSettings'])->name('settings.update');
+
+        Route::get('/docs', [AdminDocsController::class, 'index'])->name('docs.index');
+        Route::put('/docs/settings', [AdminDocsController::class, 'updateSettings'])->name('docs.settings.update');
+        Route::put('/docs/sections/{section}', [AdminDocsController::class, 'updateSection'])->name('docs.sections.update');
+        Route::post('/docs/sections/{section}/publish', [AdminDocsController::class, 'publishSection'])->name('docs.sections.publish');
+        Route::post('/docs/reorder', [AdminDocsController::class, 'reorderSections'])->name('docs.reorder');
+        Route::post('/docs/revisions/{revision}/restore', [AdminDocsController::class, 'restoreRevision'])->name('docs.revisions.restore');
+        Route::post('/docs/team', [AdminDocsController::class, 'storeTeamMember'])->name('docs.team.store');
+        Route::put('/docs/team/{member}', [AdminDocsController::class, 'updateTeamMember'])->name('docs.team.update');
+        Route::delete('/docs/team/{member}', [AdminDocsController::class, 'destroyTeamMember'])->name('docs.team.destroy');
     });
 });

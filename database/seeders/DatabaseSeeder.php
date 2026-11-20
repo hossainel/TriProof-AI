@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             FactorySeeder::class,
             SystemSettingsSeeder::class,
+            DocsSeeder::class,
         ]);
 
         $email = env('ADMIN_EMAIL');

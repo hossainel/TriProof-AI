@@ -49,10 +49,13 @@
                 </h2>
             </div>
 
-            <a href="{{ route('dashboard') }}" class="btn btn-secondary">
-                <x-icon name="arrow-right" class="h-3.5 w-3.5 transform -rotate-90" />
-                {{ __('triproof.admin.back') }}
-            </a>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('admin.docs.index') }}" class="btn btn-primary">Documentation Studio</a>
+                <a href="{{ route('dashboard') }}" class="btn btn-secondary">
+                    <x-icon name="arrow-right" class="h-3.5 w-3.5 transform -rotate-90" />
+                    {{ __('triproof.admin.back') }}
+                </a>
+            </div>
         </div>
     </section>
 

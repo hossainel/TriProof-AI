@@ -2,9 +2,20 @@
 
 namespace App\Providers;
 
+use App\Models\AiAnomalyReport;
+use App\Models\DocSection;
+use App\Models\DocTeamMember;
+use App\Models\Factory;
+use App\Models\PurchaseOrder;
+use App\Models\RecallEvent;
+use App\Models\ScanLog;
+use App\Models\SerialRegistry;
+use App\Models\SigningKey;
+use App\Models\User;
 use App\Support\ApiResponse;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
@@ -20,6 +31,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureRateLimiting();
+        $this->bustDocsTelemetryOnChanges();
 
         if (app()->isProduction()) {
             DB::prohibitDestructiveCommands();
@@ -27,6 +39,27 @@ class AppServiceProvider extends ServiceProvider
             if (str_starts_with((string) config('app.url'), 'https://')) {
                 URL::forceScheme('https');
             }
+        }
+    }
+
+    private function bustDocsTelemetryOnChanges(): void
+    {
+        $models = [
+            Factory::class,
+            User::class,
+            PurchaseOrder::class,
+            SerialRegistry::class,
+            ScanLog::class,
+            RecallEvent::class,
+            AiAnomalyReport::class,
+            SigningKey::class,
+            DocSection::class,
+            DocTeamMember::class,
+        ];
+
+        foreach ($models as $model) {
+            $model::saved(fn () => Cache::forget('docs_live_telemetry'));
+            $model::deleted(fn () => Cache::forget('docs_live_telemetry'));
         }
     }
 

@@ -334,5 +334,60 @@ CREATE TABLE `system_settings` (
   PRIMARY KEY (`key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `doc_sections` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `slug` varchar(120) NOT NULL,
+  `category` enum('pitch_deck','technical','operations') NOT NULL,
+  `section_key` varchar(120) NOT NULL,
+  `title_en` varchar(255) NOT NULL,
+  `title_bn` varchar(255) DEFAULT NULL,
+  `subtitle_en` varchar(255) DEFAULT NULL,
+  `subtitle_bn` varchar(255) DEFAULT NULL,
+  `content_markdown` longtext NOT NULL,
+  `draft_markdown` longtext DEFAULT NULL,
+  `diagram_mermaid` text DEFAULT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `is_visible` tinyint(1) NOT NULL DEFAULT 1,
+  `status` enum('published','draft') NOT NULL DEFAULT 'published',
+  `updated_by` bigint(20) unsigned DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `doc_sections_slug_unique` (`slug`),
+  KEY `doc_sections_sort_order_index` (`sort_order`),
+  KEY `doc_sections_updated_by_foreign` (`updated_by`),
+  CONSTRAINT `doc_sections_updated_by_foreign` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `doc_revisions` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `doc_section_id` bigint(20) unsigned DEFAULT NULL,
+  `version_label` varchar(64) NOT NULL,
+  `snapshot_json` longtext NOT NULL,
+  `change_note` varchar(255) DEFAULT NULL,
+  `created_by` bigint(20) unsigned DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `doc_revisions_doc_section_id_created_at_index` (`doc_section_id`,`created_at`),
+  KEY `doc_revisions_created_by_foreign` (`created_by`),
+  CONSTRAINT `doc_revisions_doc_section_id_foreign` FOREIGN KEY (`doc_section_id`) REFERENCES `doc_sections` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `doc_revisions_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `doc_team_members` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `full_name` varchar(255) NOT NULL,
+  `role_title` varchar(255) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `bio_short` varchar(255) DEFAULT NULL,
+  `photo_path` varchar(255) DEFAULT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `doc_team_members_sort_order_index` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
