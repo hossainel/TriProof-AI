@@ -65,7 +65,7 @@ jobs:
         run: php artisan key:generate
 
       - name: Generate signing keys
-        run: php artisan triproof:keys --write
+        run: php artisan triproof:keys --write --force
 
       - name: Prepare writable directories
         run: chmod -R u+w storage bootstrap/cache
