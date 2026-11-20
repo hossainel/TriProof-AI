@@ -98,8 +98,8 @@ class VerificationService
      */
     public function inspect(string $outerSerial, string $innerSerial): array
     {
-        $outerSerial = trim($outerSerial);
-        $innerSerial = preg_replace('/\s+/', '', trim($innerSerial)) ?? '';
+        $outerSerial = $this->crypto->normalizePayload(trim($outerSerial));
+        $innerSerial = $this->normalizeInnerSerial($innerSerial);
 
         $signatureValid = $this->crypto->verify($outerSerial, $innerSerial);
         $registry = SerialRegistry::query()->where('outer_serial', $outerSerial)->first();
@@ -151,6 +151,13 @@ class VerificationService
         ];
     }
 
+    private function normalizeInnerSerial(string $innerSerial): string
+    {
+        $innerSerial = preg_replace('/\s+/', '', trim($innerSerial)) ?? '';
+
+        return str_starts_with($innerSerial, 'TP1:') ? substr($innerSerial, 4) : $innerSerial;
+    }
+
     private function processOne(array $log, User $actor, ScanMode $mode, CarbonImmutable $scannedAt): array
     {
         $syncUuid = trim((string) ($log['sync_uuid'] ?? ''));
@@ -163,8 +170,8 @@ class VerificationService
             return $this->duplicateResult($existing);
         }
 
-        $outer = trim((string) ($log['outer_serial'] ?? ''));
-        $inner = preg_replace('/\s+/', '', trim((string) ($log['inner_serial'] ?? ''))) ?? '';
+        $outer = $this->crypto->normalizePayload(trim((string) ($log['outer_serial'] ?? '')));
+        $inner = $this->normalizeInnerSerial((string) ($log['inner_serial'] ?? ''));
         $deviceToken = trim((string) ($log['device_token'] ?? ''));
 
         if ($outer === '' || $inner === '' || $deviceToken === '') {

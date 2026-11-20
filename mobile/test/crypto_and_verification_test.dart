@@ -107,6 +107,33 @@ void main() {
       expect(feedbackService.alertCount, 0);
     });
 
+    test('normalizes a smart URL QR payload to the canonical signed serial and hash',
+        () async {
+      final pair = await demoSimulator.generateScenario(
+        DemoScenario.genuineProduct,
+        referenceUtc: currentClockUtc,
+      );
+      final smartUrl =
+          'https://t.focusautomobiles.com/v/${Uri.encodeComponent(pair.outerSerialOrOcr)}';
+
+      final result = await repository.verifyOffline(
+        outerSerial: smartUrl,
+        innerSerial: pair.innerSerial,
+        mode: ScanMode.consumerUnboxing,
+        sessionId: 'SMART-URL',
+      );
+
+      expect(result.offlineStatus, OfflineStatus.genuineOffline);
+      expect(result.record.outerSerial, pair.outerSerialOrOcr);
+      expect(
+        result.record.unitHash,
+        await cryptoService.computeUnitHash(
+          pair.outerSerialOrOcr,
+          pair.innerSerial,
+        ),
+      );
+    });
+
     test('detects repeat owner on different session vs duplicate box in same session',
         () async {
       final pair = await demoSimulator.generateScenario(

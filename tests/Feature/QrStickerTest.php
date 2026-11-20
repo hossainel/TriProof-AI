@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\BatchExportService;
+use App\Services\VerificationService;
 use chillerlan\QRCode\QRCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\TriProofFixtures;
@@ -69,6 +70,23 @@ class QrStickerTest extends TestCase
             $this->assertStringContainsString($needle, $printable);
         }
         $this->assertSame(0, preg_match('/[\x{0980}-\x{09FF}]/u', $html));
+    }
+
+    public function test_qr_smart_url_and_prefixed_inner_payload_verify_in_web_verifier(): void
+    {
+        [$order, $buyer] = $this->makeOrder(6);
+        $this->generateSerials($order, $buyer, 1, 'M01', 'B01');
+        $serial = $order->serials()->firstOrFail();
+
+        $outerUrl = rtrim((string) config('app.url'), '/').'/v/'.$serial->outer_serial;
+        $result = app(VerificationService::class)->inspect($outerUrl, 'TP1:'.$serial->inner_serial);
+
+        $this->assertSame($serial->outer_serial, $result['outer_serial']);
+        $this->assertTrue($result['signature_valid']);
+        $this->assertTrue($result['registered']);
+        $this->assertTrue($result['hash_matches']);
+        $this->assertTrue($result['authentic']);
+        $this->assertSame('verified_clean', $result['verdict']);
     }
 
     public function test_invalid_limits_are_rejected_and_all_pairs_can_be_printed(): void

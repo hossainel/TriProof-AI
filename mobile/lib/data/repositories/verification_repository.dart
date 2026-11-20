@@ -94,12 +94,13 @@ class VerificationRepository {
       );
     }
 
-    // Attempt clean parse first, falling back to OCR structural repair.
-    final cleanOuter = ParsedOuterSerial.tryParse(outerSerial) != null
-        ? outerSerial.trim()
-        : (OcrSerialNormalizer.extractAndNormalize(outerSerial) ??
-            outerSerial.trim());
-    final parsed = ParsedOuterSerial.tryParse(cleanOuter);
+    // Attempt clean parse first, falling back to OCR structural repair. Smart URL
+    // wrappers are stripped here so the persisted serial and unit hash are the
+    // exact canonical strings that were signed by HQ and verified by the cloud.
+    final smartParsed = ParsedOuterSerial.tryParse(outerSerial);
+    final cleanOuter = smartParsed?.rawSerial ??
+        (OcrSerialNormalizer.extractAndNormalize(outerSerial) ?? outerSerial.trim());
+    final parsed = smartParsed ?? ParsedOuterSerial.tryParse(cleanOuter);
 
     final unitHash =
         await _cryptoService.computeUnitHash(cleanOuter, normalizedInner);
