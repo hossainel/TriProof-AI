@@ -86,7 +86,6 @@ class SecureKeystoreService {
   final Random _csprng = Random.secure();
   final int _buildEpochMs;
 
-  List<int>? _cachedPublicKeyBytes;
   final Map<String, List<int>> _cachedDecodedKeys = <String, List<int>>{};
   Map<String, String>? _cachedPublicKeyRing;
   String? _cachedActiveKeyId;
@@ -204,7 +203,7 @@ class SecureKeystoreService {
     }
 
     if (activeFromStatus != null) {
-      await setActiveKeyId(activeFromStatus!);
+      await setActiveKeyId(activeFromStatus);
     }
   }
 
@@ -355,9 +354,6 @@ class SecureKeystoreService {
 
   void _cacheDecoded(String keyId, List<int> bytes) {
     _cachedDecodedKeys[_normalizeKeyId(keyId)] = bytes;
-    if (_normalizeKeyId(keyId) == legacyKeyId) {
-      _cachedPublicKeyBytes = bytes;
-    }
   }
 
   List<int> _decode32(String encoded, String keyId) {

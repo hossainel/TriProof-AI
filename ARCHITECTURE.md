@@ -1,72 +1,74 @@
-# TriProof AI — Architecture
+# TriProof AI — System Architecture
 
-> Working memory file. Read this first, then `CHECKPOINT.md` for current build state.
-> Every material architectural change must be reflected here.
+> Canonical architecture and data-model reference. Pair it with [README.md](README.md), [CHECKPOINT.md](CHECKPOINT.md), [API reference](docs/API.md), [mobile client](mobile/README.md), and [schema.sql](schema.sql). Every material change must be reflected here.
 
 ## 1. Mission
 
-TriProof AI is a production-grade supply-chain authenticity platform for global buyers and
-Bangladeshi factories. It combines quota-locked Ed25519 serial signing, offline-first mobile
-verification, cloud cross-checking, precision recalls, rework lineage reconstruction and
-bilingual (English/Bangla) AI-assisted compliance.
+TriProof AI is a supply-chain authenticity platform for global buyers, factories, administrators, station verifiers, and consumers. It addresses eight concrete risks:
 
-It addresses eight core problems:
+1. Outer-box swapping and counterfeiting
+2. Unreported ghost overproduction
+3. Broad, imprecise product recalls
+4. Broken serial lineage during factory rework
+5. Verification in internet dead zones
+6. Formula / label reverse engineering
+7. Smudged or curved-label scanning
+8. English-to-Bangla compliance gaps on the factory floor
 
-1. Outer-box swapping and counterfeiting.
-2. Unreported "ghost" overproduction.
-3. Broad, imprecise product recalls.
-4. Broken serial lineage during factory rework.
-5. Verification in internet dead zones.
-6. Formula / label reverse-engineering.
-7. Smudged or curved-label scanning (Vision AI + signature fallback).
-8. English-to-Bangla compliance gaps on the factory floor.
+The design keeps signing authority centralized, verification portable, business rules in one service layer, and all state transitions auditable.
 
-## 2. Technology Stack
+## 2. Technology stack
 
 | Layer | Choice |
 |---|---|
-| Language | PHP 8.2+ (validated on PHP 8.4) |
-| Framework | Laravel 12 (MVC, Eloquent, migrations, queues, HTTP client) |
-| Database | MySQL 8.0+ / MariaDB 10.6+ (utf8mb4), PDO prepared statements via Eloquent/Query Builder |
-| Cryptography | PHP native `ext-sodium` — Ed25519 detached signatures; SHA-256 Merkle trees |
-| API auth | Stateless JWT (HS256, `firebase/php-jwt`) + Laravel web sessions/CSRF for dashboard |
-| Rate limiting | Laravel RateLimiter + database cache |
-| Frontend | Blade, Tailwind CSS 4 (Vite production build), vanilla JS, Chart.js, Leaflet |
-| PDF export | barryvdh/laravel-dompdf (printable batch packages) |
-| AI | Provider-agnostic OpenAI-compatible or Gemini HTTP client via Laravel HTTP, with deterministic bilingual fallback |
-| Tests | PHPUnit feature/unit tests against MySQL/MariaDB (`triproof_testing`); no SQLite dependency |
-| Hosting | cPanel / VPS / managed MySQL |
+| Backend | Laravel 12, PHP 8.2+ (validated on 8.4), Eloquent, FormRequests, Policies |
+| Frontend | Blade, Tailwind CSS 4, Vite 7, vanilla JS, Chart.js, Leaflet |
+| Database | MySQL 8+ / MariaDB 10.6+, `utf8mb4`, prepared statements via Eloquent/Query Builder |
+| Crypto | Ed25519 via native sodium or `paragonie/sodium_compat`; SHA-256; HS256 JWT via `firebase/php-jwt` |
+| Exports | Dompdf, `chillerlan/php-qrcode`, streamed CSV |
+| AI | OpenAI-compatible / Gemini HTTP clients with deterministic bilingual fallback |
+| Mobile | Flutter 3.50+, Dart 3.12+, SQLCipher, ML Kit, geolocator, connectivity_plus |
+| Hosting | cPanel shared hosting or VPS; zero-SSH `public/cpanel-setup.php` installer |
 
-No frontend SPA framework. No placeholder TODOs. All user-facing flows are implemented.
+No SPA framework is used. Server-rendered Blade views share the same services as the JSON API.
 
-## 3. Request Flow
+## 3. Request flow
 
-```
+```text
 public/index.php
   └─ bootstrap/app.php
-      ├─ routes/web.php  → session auth + CSRF → Blade dashboards / web verifier
-      └─ routes/api.php  → CORS + JWT middleware + throttle → JSON controllers
-                            └─ Service layer (purchase orders, signing, verification,
-                               notifications, recall, rework, AI, Merkle, blacklist)
-                                 └─ Eloquent models → MySQL
+      ├─ routes/web.php
+      │   ├─ session auth + CSRF + role middleware
+      │   ├─ Blade dashboards, admin directory, verifier, public pages
+      │   └─ web forms → FormRequests → controllers → services → Eloquent
+      └─ routes/api.php  (prefix: /api/v1)
+          ├─ public / optional / JWT middleware + throttles
+          ├─ JSON controllers → FormRequests → policies → services → Eloquent
+          └─ ApiResponse envelope + bootstrap JSON exception mapping
 ```
 
-Both API and web controllers reuse the same service layer; business rules are never duplicated.
+`bootstrap/app.php` registers `SetLocale`, `SecurityHeaders`, `AuthenticateApi`, `OptionalApiAuth`, and the `role` middleware. Merchant/live environments enable `DB::prohibitDestructiveCommands()` and force HTTPS URL generation. The scheduler runs `triproof:anchor-merkle` daily at 01:30.
 
-## 4. Directory Map (key paths)
+## 4. Directory map (key paths)
 
-```
+```text
 app/
-  Console/Commands/GenerateSigningKeys.php     # php artisan triproof:keys
+  Console/Commands/
+    GenerateSigningKeys.php          # triproof:keys
+    RotateSigningKey.php             # triproof:keys:rotate
+    AnchorMerkle.php                 # triproof:anchor-merkle
   Http/
-    Controllers/Api/*                          # versioned REST controllers
-    Controllers/Web/*                          # dashboard / verifier controllers
-    Middleware/AuthenticateApi.php             # JWT authentication
-    Middleware/EnsureRole.php                  # role gates for web pages
-    Middleware/SetLocale.php                   # en/bn locale from session/user
-    Requests/*                                 # validation
-  Models/                                      # User, PurchaseOrder, SerialRegistry, ScanLog,
-                                               # Notification, AiAnomalyReport, RecallEvent
+    Controllers/Api/*                # auth, orders, verification, cartons, blacklist, alerts
+    Controllers/Web/*                # dashboard, admin directory, orders, verifier, public pages
+    Middleware/AuthenticateApi.php
+    Middleware/OptionalApiAuth.php
+    Middleware/EnsureRole.php
+    Middleware/SetLocale.php
+    Middleware/SecurityHeaders.php
+    Requests/*                       # web + API validation
+  Models/                            # User, Factory, PurchaseOrder, SerialRegistry, ScanLog,
+                                     # RecallEvent, SigningKey, CartonAggregation, CartonUnit,
+                                     # BlockchainAnchor, DeviceAttestation, SystemSetting, ...
   Policies/PurchaseOrderPolicy.php
   Services/
     Crypto/MasterKeyService.php
@@ -75,216 +77,214 @@ app/
     Auth/JwtService.php
     PurchaseOrderService.php
     BatchGenerationService.php
-    BatchExportService.php
+    PackingService.php
     VerificationService.php
-    NotificationService.php
     RecallService.php
     ReworkService.php
+    OfflineBlacklistService.php
+    DppService.php
+    CartonAggregationService.php
+    MerkleAnchorService.php
+    OwnershipTransferService.php
     Ai/AiClient.php
     Ai/AnomalyAnalysisService.php
-    OfflineBlacklistService.php
   Support/ApiResponse.php
-bootstrap/app.php                              # route registration, middleware, JSON errors
-config/triproof.php                            # crypto, JWT, rate limits, AI, exports
-database/migrations/*                          # full MySQL schema
-database/seeders/*                             # production admin + local demo seeder
+  Support/BloomFilter.php
+bootstrap/app.php
+config/triproof.php
+database/migrations/*
+database/seeders/*
 resources/
-  css/app.css                                  # Tailwind 4 + Leaflet styles
-  js/app.js                                    # charts, maps, modals, uploads, i18n hooks
-  views/layouts/*, auth/*, dashboard/*, verify/*
+  css/app.css                        # Tailwind 4 + dialog lifecycle CSS
+  js/app.js                          # charts, maps, modals, pack suggestions, i18n hooks
+  views/layouts/app.blade.php        # guarded global modal auto-open
+  views/partials/dialogs.blade.php   # dashboard dialogs + packable JSON
+  views/admin/partials/dialogs/*     # admin add/edit dialogs
+  views/dashboard/*, verify/*, passport/*, admin/*
 routes/web.php, routes/api.php
-schema.sql                                     # canonical MySQL DDL (mirrors migrations)
-docs/API.md                                    # endpoint reference + cURL examples
-ARCHITECTURE.md, CHECKPOINT.md, README.md
+public/cpanel-setup.php              # self-cleaning zero-SSH installer
+schema.sql
+docs/API.md
+mobile/                              # Flutter verifier
 ```
 
-## 5. Data Model
+## 5. Data model
 
-Core tables (exact field contract lives in `schema.sql` and migrations):
+Migrations are authoritative; `schema.sql` is their DDL mirror. The domain tables are:
 
-- `users` — role (`global_buyer`, `factory_qa`, `admin`), `language_pref`, plus the working
-  extension `factory_id` so factory QA users can be scoped to a factory code.
-- `purchase_orders` — buyer/factory scope, `authorized_quota`, `generated_count`,
-  `factory_expiry_days` (packing SLA), `retail_expiry_days` (label expiry), `merkle_root_hash`.
-- `serial_registry` — one row per signed unit: outer/inner serials, SHA-256 `unit_hash`,
-  factory/machine/batch/unit coordinates, production/expiry dates, lifecycle status,
-  first-claim device/time/GPS, `rework_parent_serial`.
-- `scan_logs` — append-only verification ledger, idempotent by `sync_uuid`; stores offline
-  verdict, authoritative cloud verdict, GPS and device.
-- `notifications` — bilingual device inbox (`info`, `warning`, `critical_clone`, `recall_alert`).
-- `ai_anomaly_reports` — bilingual actionable reports, affected unit payload (JSON), status.
-- Supporting: `recall_events` (audit of precision recalls) and Laravel infrastructure tables
-  (`sessions`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`).
+| Table | Purpose and key fields |
+|---|---|
+| `users` | `name`, `email`, custom `password_hash`, `role` (`global_buyer`, `factory_qa`, `admin`), `language_pref`, nullable `factory_id` |
+| `factories` | `code` unique, `name_en`, `name_bn`, `location`, `contact_email`, `is_active`; deletion guarded by PO/serial/user references |
+| `purchase_orders` | `po_number` unique, `buyer_id` FK, `factory_id`, `authorized_quota`, `generated_count`, `factory_expiry_days`, `retail_expiry_days`, `merkle_root_hash`, `dpp_metadata`, `dpp_digest` |
+| `serial_registry` | One signed unit: `outer_serial` unique, `inner_serial`, `unit_hash` unique, factory/machine/batch/unit coordinates, dates, `status`, claim token/time/GPS, `rework_parent_serial` |
+| `scan_logs` | Append-only verification ledger keyed by `sync_uuid`; offline/cloud verdicts, GPS, device, scan sequence |
+| `notifications` | Bilingual device inbox with severities `info`, `warning`, `critical_clone`, `recall_alert` |
+| `ai_anomaly_reports` | Clone/ghost/rework/defect findings with bilingual explanations and affected-unit JSON |
+| `recall_events` | Precision recall audit with factory/machine/batch, affected count, reason, trigger user |
+| `system_settings` | Key/value platform metadata and compliance notices |
+| `signing_keys` | Versioned Ed25519 key ring: public key, encrypted private key, `active|verify_only|revoked`, buyer scope |
+| `carton_aggregations` | Sealed carton serial, PO, factory, batch, unit count, Merkle root, signature, logistics status |
+| `carton_units` | Unit-to-carton mapping with leaf index; a serial may belong to only one carton |
+| `blockchain_anchors` | Date, batch Merkle root, PO IDs, provider, receipt, status |
+| `device_attestations` | Device token PK, public key, Play Integrity verdict, monotonic `last_scan_seq` |
+| Laravel infrastructure | `sessions`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`, `migrations` |
 
-Relationships: users (buyer) 1—N purchase_orders; purchase_orders 1—N serial_registry and
-ai_anomaly_reports; serial_registry 1—N scan_logs by outer serial; recall_events M—1 factory scope.
+Relationships: buyer `users` 1—N `purchase_orders`; PO 1—N `serial_registry`, `carton_aggregations`, `ai_anomaly_reports`, `recall_events`; serial 1—N `scan_logs` by `outer_serial`; serial 1—1 `carton_units`. `config/auth.php` references a `password_reset_tokens` table that is not created by migrations; no password-reset flow is wired.
 
-Indexes: unique `po_number`, `outer_serial`, `unit_hash`, `sync_uuid`; composite
-`(factory_id, machine_id, batch_id)`, `(po_id, status)`, `(device_token, is_read)`, and
-`(outer_serial, scanned_at)`.
+Indexes include unique `po_number`, `outer_serial`, `unit_hash`, `sync_uuid`, `carton_serial`, `key_version`, and composite indexes over `(factory_id, machine_id, batch_id)`, `(po_id, status)`, `(device_token, is_read, created_at)`, and `(outer_serial, scanned_at)`.
 
 ## 6. Cryptography
 
-### Key management
+### Key lifecycle
 
-- One Ed25519 master keypair generated by `sodium_crypto_sign_keypair()`.
-- `HQ_PRIVATE_SIGNING_KEY` = Base64 64-byte secret key, `.env` only. Never logged, never in API.
-- `UNIVERSAL_PUBLIC_VERIFICATION_KEY` = Base64 32-byte public key, embedded in mobile/web.
-- Key setup: `php artisan triproof:keys --write` (refuses to overwrite unless `--force`).
-- Rotation is out of scope for v1; the public key and SHA-256 fingerprint are exposed at
-  `GET /.well-known/triproof-key.json` for transparency.
+- `MasterKeyService` resolves keys from `signing_keys`, preferring buyer-specific active keys and falling back to the global active key.
+- Private material is encrypted with Laravel `Crypt`; key pairs are validated by deriving the public key and using `hash_equals`.
+- Legacy `K00` uses `HQ_PRIVATE_SIGNING_KEY` / `UNIVERSAL_PUBLIC_VERIFICATION_KEY`.
+- `php artisan triproof:keys --write` bootstraps keys and JWT secret; `triproof:keys:rotate --key-version=K02 [--buyer=ID]` retires old keys to `verify_only`.
+- Public metadata, fingerprints, rotation policy, and the key ring are published at `GET /.well-known/triproof-key.json`. Login and `/auth/me` return `key_ring` and `active_keys`; `verify_only_keys` are published by well-known.
 
 ### Serial contract
 
+```text
+K00 / legacy:
+  {FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{PROD_DATE}|{EXP_DATE}
+
+Enterprise V2:
+  {KNN}-{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{PROD_DATE}|{EXP_DATE}|DPP:{8-HEX-DIGEST}
+
+inner_serial = Base64( Ed25519 detached signature over the exact outer_serial )
+unit_hash    = SHA-256( outer_serial . "|" . inner_serial )
 ```
-outer_serial = {FACTORY_ID}-{MACHINE_ID}-{BATCH_ID}-{UNIT:06d}|{ProdYYYYMMDD}|{ExpYYYYMMDD}
-inner_serial = Base64( sodium_crypto_sign_detached(outer_serial, HQ_PRIVATE_SIGNING_KEY) )
-unit_hash    = SHA-256( outer_serial . "|" . inner_serial )   # hex, unique
-```
 
-`Exp` is production date + PO `retail_expiry_days`. `factory_expiry_days` is the packing SLA
-shown to buyers/factories (deadline = PO creation + factory days).
+Dates accept `YYYY-MM-DD` or `YYYYMMDD`. Factory IDs are 2–16 characters; machine and batch IDs are 1–16. Factory expiry days define the packing SLA; retail expiry days define label expiry.
 
-### Quota lock
+### Quota-locked signing transaction
 
-Inside a MySQL transaction:
+1. Begin a MySQL transaction and `SELECT ... FOR UPDATE` the purchase order.
+2. Reject when `count > authorized_quota - generated_count`.
+3. Allocate explicit or next-free unit numbers for the factory/machine/batch scope.
+4. Sign exactly N outer serials and insert rows; unique indexes are a second defense.
+5. Recompute the Merkle root over ordered `unit_hash` leaves.
+6. Update `generated_count` and `merkle_root_hash`, then commit.
 
-1. `SELECT ... FOR UPDATE` the PO row.
-2. Reject if requested N > `authorized_quota - generated_count`.
-3. Allocate factory/machine/batch unit numbers (explicit start or next free).
-4. Sign and insert exactly N pairs; unique constraints are a second line of defense.
-5. Recompute the PO Merkle root over all unit hashes; update `generated_count` and root.
+Factories never hold the HQ private key. Expired factory windows create compliance warnings; they never authorize extra production.
 
-Factories cannot issue valid signatures because they never hold the HQ private key. Expired
-factory deadlines flag compliance warnings; they do not silently authorize extra units.
+### Merkle trees and anchoring
 
-### Merkle anchoring
+`MerkleService` builds deterministic SHA-256 binary trees in insertion order. Odd nodes promote; parent nodes hash `0x01 || left || right` as binary. `verifyProof()` checks inclusion with `hash_equals`.
 
-`MerkleService` implements deterministic SHA-256 binary Merkle trees over `unit_hash` leaves
-in insertion order, with odd-node promotion and domain separation. The root is stored on the
-PO and re-computable for audit. The audit viewer compares stored vs recomputed roots and
-shows leaf count + verification status; the root is ready for Phase-2 blockchain anchoring.
+`MerkleAnchorService` builds a daily batch root over PO roots and signs `TRIPROOF-ANCHOR|{date}|{root}|{poIds}` with the active local key. Receipts are stored in `blockchain_anchors` and displayed in the Merkle audit modal. External providers remain `pending`; API and web Merkle endpoints still report `anchoring_status: pending_phase_2` for compatibility.
 
-### Offline package
+### Offline package and Bloom filter
 
-Login returns a gzip+Base64 JSON package (hard cap 50,000 bytes, target <48 KiB) containing
-recent cloned serials and recalled batch keys, plus the public key. The client caches it,
-verifies Ed25519 offline, and reports offline verdicts when connectivity returns.
+Login and `GET /offline-blacklist` return a gzip+Base64 JSON package capped at 50,000 bytes. It contains recalled batches, cloned serials, the public key ring, and a binary Bloom filter targeting 30,000 entries. The configured bit cap is `OFFLINE_BLOOM_MAX_BITS=240000`; at 30,000 entries the measured false-positive rate is about 2%, not 0.1%. A Bloom hit is a probable-match warning only; exact cached blacklist lookup decides. `GET /blacklist/delta` returns incremental entries plus a separate `bloom_filter` object.
 
-## 7. Verification State Machine (cloud authority)
+## 7. Web frontend architecture
 
-For each scan (`sync_uuid` idempotency key):
+- Layout computes `$openDialog` only when validation errors exist and `old('dialog_id')` or `session('open_dialog')` is present; no dialog is hardcoded open.
+- `dialog.tp-dialog:not([open])` is hidden; `dialog.tp-dialog[open]` is centered with z-index 60, a backdrop, and a scrollable `.tp-dialog-panel`.
+- `resources/js/app.js` uses null-safe `byId`, removes stale `open` attributes, calls `showModal()` with fallback, closes via backdrops/Escape/`data-close-dialog`, and closes forms on submit.
+- Triggers populate dynamic state from `data-action`, `data-context`, `data-remaining`, `data-order-id`, `data-factory`, `data-machine`, `data-batch`, and `data-merkle-url`.
+- Each form defines `$isCurrentDialog = old('dialog_id') === '<dialog-id>'` and scopes `old()` values to that dialog; sibling dialogs never receive leaked input.
+- Admin dialogs include hidden `active_tab` values. Successful admin writes use `back()->with('status')->with('active_tab')` without old input/dialog flags; validation failures use `back()->withErrors()->withInput()`.
+- Successful order workflows flash both `status` and `success`; the dashboard flash partial displays `success`.
+- Sidebar hash navigation targets dashboard sections and admin tabs; locale is EN / বাংলা through `SetLocale` and session preference.
 
-1. Duplicate `sync_uuid` → return stored result (`duplicate: true`).
-2. Recompute Ed25519 verification with the public key; also compare outer/inner/unit hash to
-   the registry. Failure or unknown serial → `forged_signature` (logged, AI ghost signal).
-3. Status `recalled` → `recalled_batch`, queue recall alert if absent.
-4. `exp_date` passed → `expired`.
-5. `claimed_device_token IS NULL` → atomically claim: store device/time/GPS, status
-   `claimed_genuine`, verdict `verified_clean`.
-6. Same device → `owner_repeat_ok` (never a false alarm).
-7. Different device → Store Checkout Grace Rule: allow `store_grace_ok` only when
-   |Δt| ≤ 5 minutes and haversine distance ≤ 100 m from the first claim. Otherwise:
-   status `cloned_flagged`, `clone_detected`, critical bilingual notifications to **both**
-   devices, AI anomaly report upsert, and immediate `feedback_notifications` in the response.
+## 8. Verification state machine
 
-Logs can be single or batched; results are returned in chronological scan order. Forged scans
-are recorded but never claim ownership. Server-side timestamps are used for live scans; offline
-scans preserve client `scanned_at` and are documented as a trust boundary.
+For each scan keyed by `sync_uuid`:
 
-## 8. API Surface (`/api/v1`)
+1. Replayed sync UUID returns the stored result with `duplicate: true`.
+2. Attested devices provide monotonic `scan_seq`, `device_signature` over `{syncUuid}|{scanSeq}|{outer}`, and optional `contact_hash`. Replay or invalid signatures are rejected.
+3. The serial row is locked with `lockForUpdate()`.
+4. Ed25519 verification and registry hash comparison decide authenticity. Unknown or forged labels produce `forged_signature`.
+5. Verdict precedence: `forged_signature` → `recalled_batch` → `expired` → first claim `verified_clean` → same-device `owner_repeat_ok` → store grace `store_grace_ok` (≤300 seconds and ≤100 metres) → `clone_detected`.
+6. Clones flag the serial, notify both devices, create bilingual in-app alerts and an optional webhook, and upsert an AI anomaly report.
 
-| Method | Path | Roles | Purpose |
+Web `/verify` is read-only inspection; it never claims ownership. Cloud cross-check is authoritative for claim, recall, expiry, and clone state.
+
+## 9. API surface
+
+All routes are under `/api/v1` unless noted. Full request/response detail lives in [docs/API.md](docs/API.md).
+
+| Method | Path | Auth / role | Purpose |
 |---|---|---|---|
-| POST | `/auth/login` | public (throttled) | JWT, public key, offline blacklist |
-| POST | `/auth/logout` | JWT | revoke current JWT ID via cache |
-| GET | `/auth/me` | JWT | identity + key fingerprint |
-| POST | `/orders` | buyer/admin | create PO (quota contract) |
-| GET | `/orders` | JWT | scoped PO list |
-| POST | `/orders/generate-batch` | buyer/admin | quota-locked N signs + Merkle root |
-| GET | `/orders/{po}/export?format=csv\|pdf` | buyer/admin/factory | printable batch package |
-| GET | `/orders/{po}/merkle` | buyer/admin/factory | audit stored vs recomputed root |
-| POST | `/units/pack-batch` | factory/admin | mark generated units packed |
-| POST | `/verify/online-crosscheck` | JWT | single/batched offline scan cross-check |
-| GET | `/notifications/{device_token}` | JWT | bilingual inbox |
-| POST | `/notifications/mark-read` | JWT | mark IDs/all read |
-| POST | `/rework/reconcile` | factory/admin | rebuild serial lineage, OCR fallback |
-| POST | `/ai/analyze` | buyer/factory/admin | clone/ghost/rework/defect intelligence |
-| POST | `/recall/trigger` | buyer/factory/admin | precision batch recall + push alerts |
-| GET | `/health` | public | liveness/dependency status |
-| GET | `/.well-known/triproof-key.json` | public | public verification key/fingerprint |
+| GET | `/health` | Public | Dependency health |
+| POST | `/auth/login` | Public | JWT, key ring, offline blacklist |
+| POST | `/auth/logout` | JWT | Revoke JTI |
+| GET | `/auth/me` | JWT | Identity and key metadata |
+| GET | `/blacklist/delta` | Public | Incremental blacklist + Bloom filter |
+| GET | `/notifications/{deviceToken}` | Public | Device inbox |
+| POST | `/verify/online-crosscheck` | Optional JWT | Cloud cross-check |
+| GET | `/offline-blacklist` | JWT | Fresh offline package |
+| POST | `/devices/attest` | JWT | Register device Ed25519 key |
+| POST | `/cartons/aggregate` | JWT | Seal master carton |
+| GET | `/cartons/{serial}/verify` | JWT | Carton signature, manifest, proofs |
+| POST | `/orders`, `/orders/generate-batch` | Buyer/admin | PO creation and signing |
+| GET | `/orders`, `/orders/{po}/merkle`, `/orders/{po}/export` | JWT + PO policy | List, audit, CSV/PDF export |
+| POST | `/units/pack-batch` | Factory/admin | Mark units packed |
+| POST | `/recall/trigger` | Buyer/factory/admin | Precision recall |
+| POST | `/rework/reconcile` | Factory/admin | Rework lineage |
+| POST | `/notifications/mark-read` | JWT | Mark notices read |
+| POST | `/verify/transfer-ticket` | JWT | Ownership transfer ticket |
+| POST | `/ai/analyze` | JWT + throttle | AI/Anomaly analysis |
+| GET | `/.well-known/triproof-key.json` | Public | Key ring and trust contract |
+| GET | `/v/{payload}` | Public | Smart-URL product passport |
 
-All JSON errors use a consistent envelope. Rate limits: login 10/min/IP; general API 120/min/
-identity; verification 600/min identity; AI/export lower. CORS origins from env.
+Web route groups mirror these capabilities with session auth and role middleware: `/dashboard`, `/verify`, `/admin/manage`, `/orders/*`, `/recall`, and `/rework/*`.
 
-## 9. AI Layer
+## 10. AI layer
 
-`AiClient` supports OpenAI-compatible chat completions and Gemini `generateContent`, chosen by
-`.env` (`AI_PROVIDER`, `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_VISION_MODEL`). Failure or
-absence of credentials never breaks compliance workflows: a deterministic bilingual template
-engine produces actionable English + Bangla text and the response marks `ai_generated=false`.
+`AiClient` supports OpenAI-compatible chat completions and Gemini `generateContent`. Missing credentials or provider errors fall back to deterministic bilingual templates, marking output as not AI-generated. Vision OCR is optional and only returns candidate serials; Ed25519 verification remains authoritative. `AnomalyAnalysisService` writes and upserts `ai_anomaly_reports` for clone clusters, ghost production attempts, rework gaps, and defect clusters with plain-Bangla supervisor actions.
 
-Vision OCR reads curved/smudged labels, returns candidate outer/inner serials, then the
-Ed25519 verification path decides authenticity. AI never creates signatures or quota.
+## 11. Mobile offline verification pipeline
 
-`AnomalyAnalysisService` detects clone clusters (batch + GPS grid), ghost production attempts
-(forged labels grouped by parsed batch), rework gaps and defect clusters (recall/clone density),
-then writes/upserts `ai_anomaly_reports` with plain-Bangla supervisor actions.
+The Flutter client lives in [`mobile/`](mobile/README.md). Its pipeline is:
 
-## 10. Security Controls
+1. Clock-rollback guard using a persisted high-water mark advanced by GPS time, successful scans, and server sync.
+2. Smart-payload parsing for `/v/...` URLs, `KNN-` prefixes, and `|DPP:XXXXXXXX` suffixes.
+3. Pure-Dart Ed25519 verification in-isolate using the embedded universal key or provisioned key ring.
+4. Expiry and 45-day factory QA threshold checks.
+5. Cached blacklist and Bloom-filter warning path.
+6. Session duplicate and prior-owner cache checks.
 
-- Private key never leaves `.env`; config values never serialized into responses.
-- Eloquent/Query Builder prepared statements throughout; validation via FormRequests.
-- JWT HS256 with issuer/audience/expiry, unique JTI, logout revocation cache.
-- Web: Laravel session regeneration, CSRF on all state-changing forms, password hashing (bcrypt/argon).
-- Role policies scope every PO, export, pack, recall, rework and analysis action.
-- Rate limiting on login/API/AI/verify/export; CORS allow-list; secure cookie defaults.
-- Login blacklist is capped so it can never exceed the 50 KB mobile budget.
-- Audit ledgers (`scan_logs`, `recall_events`, `ai_anomaly_reports`) are append-biased.
-- Exports are streamed/generated on demand from authorized data; no public serial dumps.
-- Error responses hide internals; details are logged server-side.
+`DatabaseHelper` opens SQLCipher database `triproof_scanner_v1.db` (version 2) with a 256-bit key from `flutter_secure_storage`. Tables are `scan_history`, `cached_blacklist`, `notifications_inbox`, and `app_meta`. The in-memory mirrors are rebuilt on open and invalidated on writes.
 
-## 11. Deployment (cPanel / VPS)
+- `deleteScanRecord(syncUuid)` deletes one scan and invalidates `_sessionSerialCache` and `_priorOwnerScanCache`.
+- `clearScanHistory()` deletes every scan row and invalidates the same caches. The UI exposes this as **Clear All History**.
+- Both actions use bilingual `AlertDialog` confirmations in `scan_history_screen.dart`: Cancel/Delete, `confirmDeleteItem`, `confirmClearAll`, `historyDeleted`, and `historyCleared`.
 
-1. Upload project; document root → `public/` (root `.htaccess` fallback for shared hosts).
-2. PHP 8.2+ with `sodium`, `pdo_mysql`, `mbstring`, `openssl`, `curl`; MySQL 8.
-3. `composer install --no-dev --optimize-autoloader`
-4. `.env` from `.env.example`; `php artisan key:generate`; `php artisan triproof:keys --write`.
-5. `php artisan migrate --force && php artisan db:seed --force` (admin from env).
-6. `npm ci && npm run build` locally or deploy committed `public/build`.
-7. Cache config/routes/views; cron for `schedule:run` (optional); writable `storage/`, `bootstrap/cache/`.
-8. HTTPS + secure session cookies + CORS allow-list + AI keys configured.
+Connectivity transitions trigger store-and-forward sync: upload pending scans with `scan_seq`, provision the key ring, fetch notifications, blacklist deltas, Bloom filter, and advance the clock high-water mark from `server_time`.
 
-## 12. Decisions / Extensions
+## 12. Security controls
 
-- **Laravel instead of hand-rolled PHP:** requested by owner; provides hardened PDO usage,
-  CSRF, validation, rate limiting, sessions and deployment tooling. Crypto stays native sodium.
-- `users.factory_id` extension: the provided users contract lacked factory scoping; needed so
-  factory QA authorization cannot be spoofed.
-- Supporting `recall_events` table: auditability and durable recall reasons.
-- Added pack/list/health/well-known routes beyond the minimum contract to make the dashboard
-  and operations complete.
-- Redis/queue optional; v1 notifications are written synchronously and AI enrichment may fall
-  back deterministically so no worker is required to stay correct.
+- Private keys never leave `.env` / encrypted `signing_keys`; no secrets in API responses, exports, logs, or Markdown.
+- Web: CSRF, sessions, password hashing, role middleware, scoped old input, explicit modal reopening.
+- API: HS256 JWT with issuer/audience/JTI/expiry checks and revocation cache.
+- Authorization centralized in policies and services; resources scoped by buyer/factory/admin.
+- Row locks and unique constraints protect quota and serial uniqueness.
+- Verification limits, rate limits, export throttles, and a capped offline package protect device/server workloads.
+- Errors use a stable JSON envelope and hide internals; exceptions are logged server-side.
 
-## 13. Enterprise V2
+## 13. Deployment
 
-V2 is additive: v1 unprefixed `K00` serials, the `logs` cross-check envelope, mobile endpoints,
-the demo simulator trust root, and the English `O1/I1` sticker sheet remain intact.
+Zero-SSH cPanel workflow:
 
-- **Key lifecycle:** `signing_keys` stores versioned Ed25519 keys with encrypted private material,
-  buyer scoping, and `active|verify_only|revoked` status. `MasterKeyService` resolves the key version
-  from the serial; unknown versions fail closed. The key ring is published by well-known/login.
-- **DPP:** purchase orders carry canonical `dpp_metadata` and an 8-hex `dpp_digest`. The digest is
-  embedded in the signed V2 outer serial, making sustainability claims tamper-evident.
-- **Logistics:** cartons aggregate 2-100 units, compute a deterministic Merkle root over
-  `unit_hash`, sign `carton_serial|root|count`, and expose unit manifests with inclusion proofs.
-- **Offline warning scale:** a binary Bloom filter extends the 50 KB package to a 30,000-entry
-  target. It is a probable-match warning, not a verdict. The wire cap forces ~1% FPR; the payload
-  reports the estimate rather than claiming a mathematically impossible 0.1% at that budget.
-- **Anchoring:** daily `MerkleAnchorService` receipts are signed deterministically with
-  `local_ledger` fallback and displayed in the Merkle audit modal.
-- **Anti-replay:** device Ed25519 keys, monotonic `scan_seq`, signed sync payloads, and optional
-  webhook alerts complement the existing `sync_uuid` idempotency.
-- **Smart URLs:** `GET /v/{payload}` gives zero-app consumers a public product/DPP page. Outer QR
-  codes contain the URL; inner QR codes contain only the private signature.
+1. Upload `triproof-cpanel-deploy.zip` (web app only; excludes `mobile/` and `node_modules/`).
+2. Extract into the web root or an app directory with `public/` as document root.
+3. Configure `.env` with placeholders for database credentials, domain, and public key.
+4. Make `storage/`, `storage/framework/*`, `bootstrap/cache/`, and `public/uploads/` writable.
+5. Open `/cpanel-setup.php` once. It generates keys, writes a locked `.env`, runs migrations and seeders, and self-deletes.
+6. Remove setup scripts manually if the host prevents self-deletion, then verify health, key discovery, login, dashboards, and a scan.
+
+VPS deployments run the equivalent Composer, npm, key, migration, seeder, and optimize commands manually. Schedule `php artisan schedule:run` every minute for daily anchoring.
+
+## 14. Decisions and extensions
+
+- Laravel provides hardened PDO usage, validation, CSRF, sessions, rate limiting, and deployment tooling; crypto remains portable through `paragonie/sodium_compat`.
+- `users.factory_id` exists because the original user contract lacked factory scoping.
+- `recall_events` and `scan_logs` provide durable audit trails.
+- Notifications are written synchronously; queues are optional for scaling.
+- V2 is additive: legacy `K00` serials, the `logs` cross-check envelope, mobile endpoints, demo trust root, and English `O1/I1` sticker sheets remain compatible.
+- Key rotation, DPP digests, carton Merkle proofs, offline Bloom warnings, device attestation, local anchors, webhooks, and smart-URL passports extend V1 without breaking existing clients.

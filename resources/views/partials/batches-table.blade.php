@@ -57,6 +57,7 @@
                                         data-open-dialog="pack-dialog"
                                         data-action="{{ route('orders.pack', $batch->po_id) }}"
                                         data-context="{{ $batch->po_number }} · {{ $scope }}"
+                                        data-order-id="{{ $batch->po_id }}"
                                         data-machine="{{ $batch->machine_id }}"
                                         data-batch="{{ $batch->batch_id }}"
                                     >

@@ -1,53 +1,50 @@
-# TriProof AI REST API (v1)
+# TriProof AI REST API (v1 + Enterprise V2 additions)
 
-The mobile/partner API is versioned under `/api/v1`. The web application uses Laravel sessions
-and CSRF separately; this document covers the token-authenticated JSON API.
+The mobile/partner API is versioned under `/api/v1`. The web console uses Laravel sessions and CSRF separately. This document describes the JSON API, public trust endpoints, and the public smart-URL passport. Cross-reference [Architecture](../ARCHITECTURE.md), the [main README](../README.md), and the [mobile client](../mobile/README.md).
 
-## Base URL
+## Base URL and conventions
 
+```text
+https://<YOUR_DOMAIN>/api/v1
 ```
-https://your-domain.example/api/v1
-```
 
-Public trust metadata is also served outside the API prefix:
+Public trust metadata and passports are served outside the API prefix:
 
-```
+```text
 GET /.well-known/triproof-key.json
+GET /v/{payload}
 ```
 
-Send `Accept: application/json` on every request and `Content-Type: application/json` when a
-body is present.
+Send `Accept: application/json` on every API request and `Content-Type: application/json` when a body is present. Times are ISO-8601 UTC. Path parameters `po` are numeric purchase-order IDs. Factory, machine, and batch identifiers are normalized to uppercase where appropriate.
 
 ## Authentication
 
-Obtain a JWT with `POST /auth/login`. Use it as a Bearer token:
-
-```
-Authorization: Bearer <token>
+```http
+Authorization: Bearer <JWT>
 ```
 
-- Algorithm: HS256, signed with `JWT_SECRET` (falls back to `APP_KEY`).
-- TTL: `JWT_TTL_MINUTES` (default 720 minutes).
-- Claims include `iss`, `aud`, `sub`, `role`, `iat`, `nbf`, `exp`, `jti`, and `typ=access`.
-- Logout revokes the current `jti` in the cache until the token expires.
-- A role change or deleted account invalidates the token on its next use.
+- Algorithm: HS256 via `firebase/php-jwt`, signed with `JWT_SECRET` (fallback `APP_KEY`).
+- TTL: `JWT_TTL_MINUTES`, default 720 minutes.
+- Claims: `iss`, `aud`, `sub`, `role`, `iat`, `nbf`, `exp`, `jti`, `typ=access`.
+- Logout revokes the current `jti` until expiry.
+- Deleted users and role changes invalidate tokens on next use.
+- Verification and notification delivery are public or optional-auth surfaces; device tokens identify a scanner and are **not** an authentication factor.
 
-### Login
+### `POST /auth/login`
 
-`POST /auth/login` — public, throttled at 10 requests/minute/IP.
+Public, throttled at 10 requests/minute/IP.
 
 ```json
 {
   "email": "buyer@example.com",
-  "password": "your-password",
-  "device_token": "android-optional-device-token"
+  "password": "<YOUR_PASSWORD>",
+  "device_token": "scanner-optional-device-token"
 }
 ```
 
-`device_token` is optional at login and is not stored by the login endpoint. It is supplied on
-scans and notification requests.
+The `device_token` is optional at login and is not stored by this endpoint. It is supplied with scans and notification requests.
 
-Successful response (`200`):
+Success (`200`) contains JWT metadata, user, verification key material, and the offline package:
 
 ```json
 {
@@ -57,7 +54,7 @@ Successful response (`200`):
     "token": "<jwt>",
     "token_type": "Bearer",
     "expires_in": 43200,
-    "expires_at": "2026-11-19T10:00:00+00:00",
+    "expires_at": "2026-11-20T10:00:00+00:00",
     "user": {
       "id": 4,
       "name": "Global Buyer",
@@ -69,67 +66,75 @@ Successful response (`200`):
     },
     "verification": {
       "algorithm": "Ed25519",
-      "public_key_base64": "<32-byte base64 key>",
-      "key_fingerprint": "<sha256 hex>",
-      "configured": true
+      "public_key_base64": "<32-byte-base64-key>",
+      "key_fingerprint": "<sha256-hex>",
+      "key_id": "<first-32-hex-chars>",
+      "configured": true,
+      "key_ring": [
+        {
+          "version": "K00",
+          "public_key_base64": "<32-byte-base64-key>",
+          "status": "active",
+          "fingerprint": "<sha256-hex>"
+        }
+      ],
+      "active_keys": {
+        "global": "K00",
+        "buyers": {}
+      }
     },
     "offline_blacklist": {
       "encoding": "gzip+base64",
       "compression": "gzip",
-      "payload": "<base64 gzip>",
+      "format": "triproof-offline-blacklist/v1",
+      "payload": "<base64-gzip-json>",
       "compressed_bytes": 812,
       "uncompressed_bytes": 1540,
       "limit_bytes": 50000,
-      "sha256": "<sha256 hex of compressed payload>",
-      "generated_at": "2026-11-18T10:00:00+00:00",
+      "sha256": "<sha256-hex-of-compressed-payload>",
+      "generated_at": "2026-11-20T10:00:00+00:00",
       "recalled_batches": 0,
       "cloned_serials": 0,
       "cloned_serials_total": 0,
-      "truncated": false
+      "truncated": false,
+      "bloom": {
+        "bloom_bits_b64": "<base64-bits>",
+        "m_bits": 240000,
+        "k_hashes": 8,
+        "seed": 1406982848,
+        "entries": 30000,
+        "target_entries": 30000,
+        "estimated_fp_rate": 0.0204
+      }
     },
     "api_version": "v1"
   }
 }
 ```
 
-To decode the offline package: Base64-decode `data.offline_blacklist.payload`, gunzip it, then
-parse the JSON (`format: triproof-offline-blacklist/v1`). The encoded payload is guaranteed to be
-at most `limit_bytes` (strictly below 50,000 bytes by default).
+Base64-decode `offline_blacklist.payload`, gunzip it, then parse the JSON. The encoded payload never exceeds `limit_bytes` (50,000 by default). `verify_only_keys` are published by the well-known endpoint, not by login.
 
 Invalid credentials return `422` with `error.code = validation_error` and an `email` detail.
 
-### Logout
+### `POST /auth/logout`
 
-`POST /auth/logout` — Bearer token.
+Bearer token. Revokes the current token ID.
 
 ```json
-{
-  "success": true,
-  "message": "Token revoked. Discard it from the device.",
-  "data": null
-}
+{"success":true,"message":"Token revoked. Discard it from the device.","data":null}
 ```
 
-### Identity
+### `GET /auth/me`
 
-`GET /auth/me` — Bearer token.
-
-Returns the same `user` object as login plus the current public key fingerprint. It returns
-`401` after the token has been revoked or has expired.
+Bearer token. Returns the user object plus current key fingerprint and `key_ring`.
 
 ## Response conventions
 
 Success:
 
 ```json
-{
-  "success": true,
-  "message": "Human-readable status.",
-  "data": {}
-}
+{"success":true,"message":"Human-readable status.","data":{},"meta":{}}
 ```
-
-`message`, `data`, and `meta` are omitted or `null` only when the endpoint has nothing to add.
 
 Error:
 
@@ -139,96 +144,83 @@ Error:
   "error": {
     "code": "validation_error",
     "message": "Please correct the submitted fields.",
-    "details": {
-      "email": ["The provided email or password is incorrect."]
-    }
+    "details": {"email": ["The provided email or password is incorrect."]}
   }
 }
 ```
 
-Validation failures always use `code=validation_error` with field-keyed `error.details`.
-Business-rule failures use a stable lowercase `snake_case` code and may include structured
-details.
+Validation failures use `validation_error` with field-keyed details. Business-rule failures use stable snake_case codes.
 
 | HTTP | Meaning |
 |---|---|
 | 200 | Completed |
-| 201 | Purchase order or serial batch created |
+| 201 | Resource created |
 | 401 | Missing, invalid, expired, revoked, or role-stale token |
-| 403 | Authenticated but not allowed to act on this resource |
-| 404 | Resource or API route not found |
+| 403 | Authenticated but not authorized |
+| 404 | Resource or route not found |
 | 409 | Quota/range conflict or retryable scan conflict |
 | 422 | Validation or business-rule rejection |
-| 429 | Rate limit exceeded (`rate_limited`) |
-| 502/503 | AI provider failure, AI/vision unavailable, or crypto unconfigured |
+| 429 | Rate limit exceeded |
+| 502/503 | AI/vision/crypto dependency unavailable |
 
-Common business codes include `insufficient_quota`, `serial_conflict`, `unit_conflict`,
-`factory_cannot_sign`, `order_not_found`, `batch_not_found`, `nothing_to_pack`,
-`invalid_batch_scope`, `entries_required`, `vision_ai_unavailable`, `ai_unavailable`,
-`crypto_unconfigured`, and `forbidden`.
+Common codes: `insufficient_quota`, `serial_conflict`, `unit_conflict`, `factory_cannot_sign`, `order_not_found`, `batch_not_found`, `nothing_to_pack`, `invalid_batch_scope`, `entries_required`, `vision_ai_unavailable`, `ai_unavailable`, `crypto_unconfigured`, `forbidden`, `scan_seq_replay`, `device_signature_invalid`.
 
 ## Rate limits
 
-Limits are per minute and keyed by authenticated user ID, falling back to client IP.
-
 | Middleware | Default | Applies to |
 |---|---:|---|
-| `triproof-login` | 10 | Login |
-| `triproof-api` | 120 | General authenticated API and health |
-| `triproof-verify` | 600 | `/verify/online-crosscheck` |
-| `triproof-ai` | 20 | `/ai/analyze` |
-| `triproof-export` | 30 | CSV/PDF export |
+| `triproof-login` | 10/min | Login |
+| `triproof-api` | 120/min | General API and health |
+| `triproof-verify` | 600/min | Verification endpoints |
+| `triproof-ai` | 20/min | AI analysis |
+| `triproof-export` | 30/min | CSV/PDF export |
 
-Override the defaults with `RATE_LIMIT_LOGIN`, `RATE_LIMIT_API`, `RATE_LIMIT_VERIFY`,
-`RATE_LIMIT_AI`, and `RATE_LIMIT_EXPORT`. Throttle responses include the standard
-`Retry-After`/`X-RateLimit-*` headers.
+Keys are authenticated user ID when present, otherwise client IP. Overrides: `RATE_LIMIT_LOGIN`, `RATE_LIMIT_API`, `RATE_LIMIT_VERIFY`, `RATE_LIMIT_AI`, `RATE_LIMIT_EXPORT`.
 
 ## Roles and scoping
 
 | Role | Scope |
 |---|---|
-| `global_buyer` | Purchase orders where the user is the buyer; can create orders and generate signed batches; can export, verify, recall, perform rework-adjacent AI analysis, and view scoped anomalies |
-| `factory_qa` | Purchase orders for the user's `factory_id`; can pack, export, recall own-factory batches, reconcile rework, and run scoped AI analysis; cannot create orders or sign serials |
-| `admin` | All purchase orders, batches, recalls, packing, generation, exports, rework, and analysis |
+| `global_buyer` | Own purchase orders; create POs; generate signed batches; export, verify, recall own batches, run scoped AI analysis |
+| `factory_qa` | POs for `factory_id`; pack, export, recall own factory batches, reconcile rework, run scoped AI analysis; cannot create POs or sign serials |
+| `admin` | All POs, batches, generation, packing, exports, recalls, rework, and analysis |
 
-Verification and notification endpoints are available to any authenticated role. Device tokens
-are not an authentication factor; they identify a scanner within the authorized API session.
+`PurchaseOrderPolicy` controls `view`, `generate`, `export`, `qrStickers`, and `pack`. Admin may do all. Buyers own by `buyer_id`; factory QA by `factory_id`.
 
 ## Endpoint index
 
 | Method | Path | Auth / role | Purpose |
 |---|---|---|---|
-| POST | `/auth/login` | Public | JWT, public key ring, offline blacklist with Bloom filter |
-| POST | `/devices/attest` | JWT | Register the Android device Ed25519 public key |
-| POST | `/cartons/aggregate` | JWT | Seal a 2-100 unit master carton and return its signed QR payload |
-| GET | `/cartons/{carton_serial}/verify` | JWT | Carton signature, manifest and Merkle inclusion proofs |
-| GET | `/offline-blacklist` | Bearer | Fresh offline package in `data`, same format as login’s `data.offline_blacklist`; no password storage or repeat login needed |
-| POST | `/verify/transfer-ticket` | Bearer | Current owner submits `outer_serial`, `inner_serial`, `device_token`; returns `data.ticket` and `expires_at`. Expires in 24h; issuing another replaces it. Recipient supplies optional `transfer_ticket` with an ordinary cross-check of the physical pair. Redemption is single-use under the registry lock. |
+| GET | `/health` | Public | Dependency health |
+| POST | `/auth/login` | Public | JWT, key ring, offline blacklist |
 | POST | `/auth/logout` | Bearer | Revoke current token |
-| GET | `/auth/me` | Bearer | Identity and key fingerprint |
-| GET | `/orders` | Bearer | Scoped purchase-order list |
+| GET | `/auth/me` | Bearer | Identity and key metadata |
+| GET | `/blacklist/delta` | Public | Incremental recalled/cloned entries + Bloom filter |
+| GET | `/notifications/{device_token}` | Public | Bilingual device inbox |
+| POST | `/verify/online-crosscheck` | Optional Bearer | Cloud-authoritative scan cross-check |
+| GET | `/offline-blacklist` | Bearer | Fresh offline package |
+| POST | `/devices/attest` | Bearer | Register device Ed25519 public key |
+| POST | `/cartons/aggregate` | Bearer + PO export rights | Seal master carton |
+| GET | `/cartons/{carton_serial}/verify` | Bearer | Carton signature, manifest, proofs |
 | POST | `/orders` | Buyer/admin | Create purchase order |
-| POST | `/orders/generate-batch` | Buyer/admin | Generate exactly N signed serials |
-| GET | `/orders/{po}/export` | Buyer/factory/admin | CSV or PDF batch export |
-| GET | `/orders/{po}/merkle` | Buyer/factory/admin | Compare stored and recomputed Merkle roots |
-| POST | `/units/pack-batch` | Factory/admin | Mark generated units packed |
-| POST | `/verify/online-crosscheck` | Bearer | Cloud-authoritative single or batched scan |
-| GET | `/notifications/{device_token}` | Bearer | Device notification inbox |
-| POST | `/notifications/mark-read` | Bearer | Mark notification IDs/all read |
-| POST | `/rework/reconcile` | Factory/admin | Link rework parent/child serials |
-| POST | `/ai/analyze` | Buyer/factory/admin | Analyze anomalies, optional rework/OCR |
+| GET | `/orders` | Bearer | Scoped PO list |
+| POST | `/orders/generate-batch` | Buyer/admin | Quota-locked signed batch |
+| GET | `/orders/{po}/merkle` | Bearer + PO policy | Merkle audit |
+| GET | `/orders/{po}/export` | Bearer + PO policy | CSV or PDF export |
+| POST | `/units/pack-batch` | Factory/admin | Mark units packed |
 | POST | `/recall/trigger` | Buyer/factory/admin | Precision batch recall |
-| GET | `/health` | Public | Liveness and dependency status |
-| GET | `/.well-known/triproof-key.json` | Public | Ed25519 public key metadata |
-
-Times are ISO-8601 strings in UTC (`...Z` or `+00:00`). `po` path parameters are numeric
-purchase-order IDs; `factory_id`, `machine_id`, and `batch_id` are normalized to uppercase.
+| POST | `/rework/reconcile` | Factory/admin | Rework lineage |
+| POST | `/notifications/mark-read` | Bearer | Mark notices read |
+| POST | `/verify/transfer-ticket` | Bearer | Ownership transfer ticket |
+| POST | `/ai/analyze` | Bearer + AI throttle | Anomaly analysis and optional OCR |
+| GET | `/.well-known/triproof-key.json` | Public | Public key ring and trust contract |
+| GET | `/v/{payload}` | Public web | Product passport page |
 
 ## Orders
 
-### List orders
+### `GET /orders`
 
-`GET /orders` — Bearer token. Returns up to 50 orders per page, newest first.
+Bearer token. Returns up to 50 newest visible orders with counts and pagination.
 
 ```json
 {
@@ -238,42 +230,26 @@ purchase-order IDs; `factory_id`, `machine_id`, and `batch_id` are normalized to
       {
         "id": 12,
         "po_number": "PO-2026-0042",
-        "buyer": {
-          "id": 4,
-          "name": "Global Buyer",
-          "email": "buyer@example.com"
-        },
+        "buyer": {"id": 4, "name": "Global Buyer", "email": "buyer@example.com"},
         "factory_id": "DHK04",
         "authorized_quota": 10000,
         "generated_count": 300,
         "remaining_quota": 9700,
         "factory_expiry_days": 45,
         "retail_expiry_days": 365,
-        "factory_deadline": "2027-01-02T10:00:00+00:00",
-        "merkle_root_hash": "<64-char sha256 hex>",
-        "counts": {
-          "serials": 300,
-          "packed": 300,
-          "claimed_genuine": 12,
-          "cloned_flagged": 1,
-          "recalled": 0
-        },
-        "created_at": "2026-11-18T10:00:00+00:00"
+        "merkle_root_hash": "<64-char-sha256-hex>",
+        "counts": {"serials": 300, "packed": 300, "claimed_genuine": 12, "cloned_flagged": 1, "recalled": 0},
+        "created_at": "2026-11-20T10:00:00+00:00"
       }
     ],
-    "pagination": {
-      "current_page": 1,
-      "per_page": 50,
-      "total": 1,
-      "last_page": 1
-    }
+    "pagination": {"current_page": 1, "per_page": 50, "total": 1, "last_page": 1}
   }
 }
 ```
 
-### Create purchase order
+### `POST /orders`
 
-`POST /orders` — buyer or admin only.
+Buyer or admin.
 
 ```json
 {
@@ -286,19 +262,16 @@ purchase-order IDs; `factory_id`, `machine_id`, and `batch_id` are normalized to
 }
 ```
 
-- `po_number` is optional; a unique number is generated when omitted.
-- `buyer_id` is optional for buyers (defaults to the caller) and required for admins through
-  the web form contract. The API service rejects a missing buyer with `buyer_required`.
-- `factory_expiry_days` defaults to the configured factory SLA (45).
-- `retail_expiry_days` defaults to 365.
-- `authorized_quota` is the maximum number of units that may ever be signed for this PO.
+- `po_number` is optional; a unique value is generated when omitted.
+- `buyer_id` defaults to the caller for buyers and is required for admins.
+- `factory_id` must reference an active factory code.
+- `authorized_quota` is the maximum number of units that may ever be signed.
 
-Returns `201` with `data.order` in the same shape as the list (count fields may be `null` until
-serials exist). Duplicate PO numbers return `409` with `po_exists`.
+Returns `201` with `data.order`. Duplicate PO numbers return `409 po_exists`.
 
-### Generate a signed batch
+### `POST /orders/generate-batch`
 
-`POST /orders/generate-batch` — buyer who owns the PO or admin.
+Buyer who owns the PO or admin.
 
 ```json
 {
@@ -307,414 +280,160 @@ serials exist). Duplicate PO numbers return `409` with `po_exists`.
   "batch_id": "B01",
   "count": 3,
   "unit_start": 1,
-  "prod_date": "2026-11-18",
+  "prod_date": "2026-11-20",
   "include_units": true
 }
 ```
 
-- `count` must be between 1 and `MAX_BATCH_GENERATE` (default 50,000).
-- `unit_start` is optional; when omitted the next free unit number is allocated.
-- `prod_date` defaults to today and cannot be in the future. Expiry is
-  `prod_date + retail_expiry_days`.
-- `include_units` defaults to `true` when `count <= 1000`; otherwise only counts and hashes are
-  returned.
-- Generation is transactional and quota-locked. Over-quota requests return `409`
-  `insufficient_quota`; overlapping unit ranges return `409` `unit_conflict` or
-  `serial_conflict`.
-- Factories cannot call this endpoint (`403` `factory_cannot_sign`).
+- `count` is 1–`MAX_BATCH_GENERATE` (default 50,000).
+- `unit_start` is optional; omitted values allocate the next free number.
+- `prod_date` defaults to today and may not be in the future.
+- `include_units` defaults to true only for small counts.
+- Generation is transactional and quota-locked; over-quota returns `409 insufficient_quota`, overlaps return `409 unit_conflict` / `serial_conflict`.
+- Factories receive `403 factory_cannot_sign`.
 
-Returns `201`:
+Returns `201` with `data.generated_count`, `unit_start`, `unit_end`, `merkle_root`, `exports`, and optional `units`.
 
-```json
-{
-  "success": true,
-  "message": "Exactly 3 quota-locked Ed25519 serial pair(s) generated.",
-  "data": {
-    "order": { "...": "purchase order payload" },
-    "generated_count": 3,
-    "unit_start": 1,
-    "unit_end": 3,
-    "merkle_root": "<64-char sha256 hex>",
-    "units_included": true,
-    "exports": {
-      "csv": "https://your-domain.example/api/v1/orders/12/export?format=csv&batch=B01",
-      "pdf": "https://your-domain.example/api/v1/orders/12/export?format=pdf&batch=B01"
-    },
-    "units": [
-      {
-        "outer_serial": "DHK04-M01-B01-000001|20261118|20271118",
-        "inner_serial": "<base64 Ed25519 signature>",
-        "unit_hash": "<sha256 hex>"
-      }
-    ]
-  }
-}
-```
+### `GET /orders/{po}/merkle`
 
-### Export a batch
+Returns `stored_root`, `recomputed_root`, `matches`, `leaf_count`, `generated_count`, `consistent`, `algorithm`, `blockchain_ready`, `anchoring_status`, and `verified_at`. `anchoring_status` is currently `pending_phase_2` for compatibility even though local anchor receipts exist.
 
-`GET /orders/{po}/export?format=csv|pdf&batch=B01` — buyer/factory/admin with PO access.
+### `GET /orders/{po}/export`
 
-- `format` defaults to `csv`; only `csv` and `pdf` are accepted.
-- `batch` is optional and restricts the export to one batch ID.
-- CSV is streamed as `text/csv; charset=UTF-8`.
-- PDF is rendered with Dompdf and capped at `MAX_PDF_UNITS` (default 20,000) per export.
-- Requests are throttled by the export limiter (30/minute by default).
+Query parameters: `format=csv|pdf` (default `csv`) and optional `batch`. CSV is streamed; PDF is capped by `MAX_PDF_UNITS`. Binary bodies are returned rather than JSON.
 
-### Merkle audit
+### `POST /units/pack-batch`
 
-`GET /orders/{po}/merkle` — buyer/factory/admin with PO access.
-
-Returns `stored_root`, `recomputed_root`, `matches`, `leaf_count`, `generated_count`,
-`consistent`, `algorithm`, `blockchain_ready`, `anchoring_status`, and `verified_at`.
-
-### Pack units
-
-`POST /units/pack-batch` — factory QA for the PO's factory or admin.
+Factory QA assigned to the PO factory, or admin.
 
 ```json
-{
-  "po_id": 12,
-  "machine_id": "M01",
-  "batch_id": "B01",
-  "unit_start": 1,
-  "unit_end": 3
-}
+{"po_id":12,"machine_id":"M01","batch_id":"B01","unit_start":1,"unit_end":3}
 ```
 
-- Only units currently in `generated` status are packed.
-- `unit_start`/`unit_end` are optional range filters.
-- Returns `data.po_id`, `data.batch`, and `data.packed_count`.
-- An empty match returns `422` `nothing_to_pack`; a buyer receives `403`.
+Only `generated` units are packed. An empty match returns `422 nothing_to_pack` with available batch ranges. Response: `data.po_id`, `data.batch`, `data.packed_count`.
 
 ## Verification
 
-### Online cross-check
+### `POST /verify/online-crosscheck`
 
-`POST /verify/online-crosscheck` — any authenticated role.
-
-Single scan:
+Public/optional Bearer. Anonymous callers are treated as a `GlobalBuyer` actor. Single scan:
 
 ```json
 {
   "sync_uuid": "7b4e2f18-4c62-4a4e-9d3f-1f8b4f6f2b7a",
-  "outer_serial": "DHK04-M01-B01-000001|20261118|20271118",
-  "inner_serial": "<base64 Ed25519 signature>",
-  "device_token": "android-warehouse-17",
+  "outer_serial": "DHK04-M01-B01-000001|20261120|20271120",
+  "inner_serial": "<base64-ed25519-signature>",
+  "device_token": "scanner-17",
   "scan_mode": "online_live",
   "gps_lat": 23.8103,
   "gps_lng": 90.4125,
-  "scanned_at": "2026-11-18T10:05:00+00:00",
-  "offline_verdict": "verified_clean"
+  "scanned_at": "2026-11-20T10:05:00+00:00",
+  "offline_verdict": "verified_clean",
+  "scan_seq": 14,
+  "device_signature": "<base64-ed25519-device-signature>",
+  "contact_hash": "<sha256-hex-optional>"
 }
 ```
 
-Batched scans replace the top-level fields with `logs: [...]`, up to 500 entries. Every entry
-needs a distinct `sync_uuid`. Offline entries may include `scanned_at` and an
-`offline_verdict`; live scans use server time.
-
-`sync_uuid` is the idempotency key. Replaying it returns the stored result with
-`duplicate: true` and does not claim ownership again.
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Cloud cross-check completed.",
-  "data": {
-    "results": [
-      {
-        "sync_uuid": "7b4e2f18-4c62-4a4e-9d3f-1f8b4f6f2b7a",
-        "outer_serial": "DHK04-M01-B01-000001|20261118|20271118",
-        "verdict": "verified_clean",
-        "verdict_label": "Verified clean",
-        "signature_valid": true,
-        "registered": true,
-        "claimed_now": true,
-        "status": "claimed_genuine",
-        "unit": {
-          "factory_id": "DHK04",
-          "machine_id": "M01",
-          "batch_id": "B01",
-          "unit_number": 1,
-          "prod_date": "2026-11-18",
-          "exp_date": "2027-11-18"
-        },
-        "feedback_notification_ids": [],
-        "message_en": "...",
-        "message_bn": "...",
-        "duplicate": false,
-        "scan_id": 91,
-        "processed_at": "2026-11-18T10:05:01+00:00"
-      }
-    ],
-    "feedback_notifications": [],
-    "summary": {
-      "verified_clean": 1
-    }
-  }
-}
-```
+Batched requests use `logs: [...]` with distinct `sync_uuid` values. Responses use `data.results`, `data.feedback_notifications`, and `data.summary`. Replaying a `sync_uuid` returns the stored result with `duplicate: true`.
 
 Verdict precedence:
 
 | Verdict | Meaning |
 |---|---|
-| `forged_signature` | Signature invalid, hash mismatch, or serial unknown to the registry |
+| `forged_signature` | Invalid signature, hash mismatch, or unknown serial |
 | `recalled_batch` | Unit belongs to a recalled batch |
 | `expired` | Expiry date has passed |
-| `verified_clean` | Authentic and claimed now by this device |
-| `owner_repeat_ok` | Scanned again by the same claiming device |
-| `store_grace_ok` | Different device inside the 5-minute / 100-metre grace window |
-| `clone_detected` | Different device outside grace; serial flagged and both devices alerted |
+| `verified_clean` | Authentic and claimed by this device now |
+| `owner_repeat_ok` | Same device scanned again |
+| `store_grace_ok` | Different device inside 5-minute / 100-metre grace |
+| `clone_detected` | Different device outside grace; serial flagged and both devices notified |
 
-`feedback_notifications` contains notices created for the device submitting each scan. A second
-owner receives their own alert via their inbox; their device token is not returned to the scanning
-phone. `summary` counts results by verdict.
+### `POST /verify/transfer-ticket`
 
-## Notifications
+Bearer. Current owner submits `outer_serial`, `inner_serial`, and `device_token`. Returns `data.ticket` and `expires_at` (24 hours). Issuing another ticket replaces the prior one. Recipient supplies optional `transfer_ticket` during an ordinary cross-check; redemption is single-use under the registry lock.
 
-### Inbox
+## Blacklist and notifications
 
-`GET /notifications/{device_token}?per_page=50&unread_only=1` — Bearer token.
+### `GET /blacklist/delta`
 
-`device_token` must match `^[A-Za-z0-9._:-]{1,128}$`. `per_page` is clamped to 1–100.
+Public. Returns incremental entries and a Bloom filter:
 
 ```json
 {
   "success": true,
   "data": {
-    "device_token": "android-warehouse-17",
-    "unread_count": 1,
-    "notifications": [
-      {
-        "id": 7,
-        "device_token": "android-warehouse-17",
-        "outer_serial": "DHK04-M01-B01-000001|20261118|20271118",
-        "severity": "critical_clone",
-        "title_en": "Counterfeit risk detected",
-        "message_en": "...",
-        "title_bn": "...",
-        "message_bn": "...",
-        "is_read": false,
-        "created_at": "2026-11-18T10:05:01+00:00"
-      }
+    "entries": [
+      {"scope": "batch", "value": "DHK04-M01-B01", "reason": "recalled_batch"}
     ],
-    "pagination": {
-      "current_page": 1,
-      "per_page": 50,
-      "total": 1,
-      "last_page": 1
-    }
-  }
-}
-```
-
-Severities are `info`, `warning`, `critical_clone`, and `recall_alert`.
-
-### Mark read
-
-`POST /notifications/mark-read` — Bearer token.
-
-```json
-{
-  "device_token": "android-warehouse-17",
-  "ids": [7, 8],
-  "mark_all": false
-}
-```
-
-Provide `ids` or set `mark_all=true`; otherwise the endpoint returns `422`. Only unread rows
-for that device are updated. Response includes `marked_read`.
-
-## Rework
-
-### Reconcile lineage
-
-`POST /rework/reconcile` — factory QA or admin.
-
-```json
-{
-  "entries": [
-    {
-      "parent_outer_serial": "DHK04-M01-B01-000001|20261118|20271118",
-      "child_outer_serial": "DHK04-M01-B01-000002|20261118|20271118",
-      "action": "rework",
-      "line_id": "LINE-01",
-      "note": "Replacement label verified against the paper rework log.",
-      "scanned_at": "2026-11-18T10:10:00+00:00"
-    }
-  ]
-}
-```
-
-- Up to 1,000 entries per request.
-- At least one of `child_outer_serial` or `image_base64` is required per entry; an image uses
-  configured Vision AI OCR to extract the child serial.
-- Both serials must parse, exist in the registry, share a factory, and have valid Ed25519
-  signatures. Cycles, conflicting parents, and self-links are rejected.
-- Results are idempotent: an existing identical link reports `already_linked`.
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Rework reconciliation complete: 1 linked, 0 gap(s).",
-  "data": {
-    "results": [
-      {
-        "index": 0,
-        "parent_outer_serial": "DHK04-M01-B01-000001|20261118|20271118",
-        "child_outer_serial": "DHK04-M01-B01-000002|20261118|20271118",
-        "status": "linked",
-        "reason_en": "Rework lineage linked and ready for audit.",
-        "reason_bn": "...",
-        "ocr": null
-      }
-    ],
-    "counts": {
-      "entries": 1,
-      "linked": 1,
-      "already_linked": 0,
-      "rejected": 0,
-      "gaps": 0,
-      "ocr_used": 0
+    "bloom_filter": {
+      "bits_b64": "<base64-bits>",
+      "m_bits": 240000,
+      "k_hashes": 8,
+      "seed": 1406982848,
+      "entries": 30000,
+      "estimated_fp_rate": 0.0204
     },
-    "summary_en": "...",
-    "summary_bn": "...",
-    "ai_generated": false,
-    "ai_configured": false
+    "meta": {"generated_at": "2026-11-20T10:00:00+00:00", "limit_bytes": 50000}
   }
 }
 ```
 
-Result statuses are `linked`, `already_linked`, `gap`, and `rejected`. A gap also writes an open
-anomaly report for the affected batch.
+A Bloom miss is a definitive negative. A Bloom hit is a probable match and must still be checked against the exact cached blacklist.
 
-## AI analysis
+### `GET /notifications/{device_token}`
 
-`POST /ai/analyze` — buyer/factory/admin, optionally scoped to a visible PO and batch.
+Public. Device token must match `^[A-Za-z0-9._:-]{1,128}$`. Query parameters: `per_page` (1–100), `unread_only`. Returns bilingual `title_en/message_en/title_bn/message_bn`, severity, read state, and pagination.
 
-```json
-{
-  "po_id": 12,
-  "batch_id": "B01",
-  "entries": [
-    {
-      "parent_outer_serial": "DHK04-M01-B01-000001|20261118|20271118",
-      "child_outer_serial": "DHK04-M01-B01-000002|20261118|20271118"
-    }
-  ],
-  "image_base64": "<optional base64 or data URI>",
-  "image_mime": "image/jpeg"
-}
+### `POST /notifications/mark-read`
+
+Bearer. Provide `ids` or `mark_all=true`; only unread rows for that device are updated. Response includes `marked_read`.
+
+## Cartons, rework, recall, AI
+
+### `POST /devices/attest`
+
+Bearer. Registers a Base64 Ed25519 device public key and optional Play Integrity verdict. Attested devices must sign scan payloads with monotonic `scan_seq`.
+
+### `POST /cartons/aggregate`
+
+Bearer plus PO export rights. Seals 2–100 units with a deterministic Merkle root and signed `qr_payload`:
+
+```text
+CTN-...|{merkle_root}|{unit_count}|{signature}
 ```
 
-- `entries` runs the same rework reconciliation and returns `data.rework`.
-- `image_base64` runs Vision OCR and, when both serials are extracted, read-only serial
-  verification. Without a configured AI provider this returns `503 vision_ai_unavailable`.
-- The anomaly analysis always runs. Without AI credentials it uses deterministic bilingual
-  template guidance and reports `ai_used=false` and `ai_generated=false` inside affected data.
-- `data.reports` contains up to 40 open anomaly reports; `data.findings` is the cluster count.
-- `data.ai_configured` and `data.ai_used` describe enrichment, not whether analysis succeeded.
+### `GET /cartons/{carton_serial}/verify`
 
-Report shape:
+Bearer. Returns signature validity, manifest, and Merkle inclusion proofs for each unit.
 
-```json
-{
-  "id": 15,
-  "po_id": 12,
-  "batch_id": "B01",
-  "anomaly_type": "clone_cluster",
-  "explanation_en": "...",
-  "explanation_bn": "...",
-  "affected_units": {
-    "factory_id": "DHK04",
-    "machine_id": "M01",
-    "serials": [],
-    "count": 1,
-    "ai_generated": false,
-    "recommended_action_en": "...",
-    "recommended_action_bn": "..."
-  },
-  "status": "open",
-  "created_at": "2026-11-18T10:15:00+00:00",
-  "updated_at": "2026-11-18T10:15:00+00:00"
-}
-```
+### `POST /rework/reconcile`
 
-`anomaly_type` is one of `clone_cluster`, `ghost_production_attempt`, `rework_gap`, or
-`defect_cluster`.
+Factory/admin. Accepts up to 1,000 `entries` with `parent_outer_serial`, `child_outer_serial`, action, line, note, and optional OCR image. Links valid same-factory pairs idempotently. Result statuses: `linked`, `already_linked`, `gap`, `rejected`. Gaps create open anomaly reports.
 
-## Recall
+### `POST /recall/trigger`
 
-`POST /recall/trigger` — buyer/factory/admin.
+Buyer/factory/admin.
 
 ```json
-{
-  "factory_id": "DHK04",
-  "machine_id": "M01",
-  "batch_id": "B01",
-  "reason": "Seal integrity failure in the evening shift."
-}
+{"factory_id":"DHK04","machine_id":"M01","batch_id":"B01","reason":"Seal integrity failure."}
 ```
 
-- Factories may only recall their own `factory_id`.
-- Buyers may only recall batches that belong to their purchase orders.
-- All matching units are marked `recalled`, affected devices are notified, and a
-  `recall_events` audit row is written.
-- The batch ID is normalized to uppercase; invalid identifiers return `422`
-  `invalid_batch_scope`; an empty match returns `404` `batch_not_found`.
+Factories are limited to their own factory; buyers to their own POs. Matching units become `recalled`, devices are notified, and a `recall_events` row is written.
 
-Response:
+### `POST /ai/analyze`
 
-```json
-{
-  "success": true,
-  "message": "Precision recall applied to 300 unit(s); 2 device(s) notified.",
-  "data": {
-    "recall_event_id": 9,
-    "batch": "DHK04-M01-B01",
-    "affected_units": 300,
-    "devices_notified": 2,
-    "triggered_at": "2026-11-18T10:20:00+00:00"
-  }
-}
-```
+Bearer, AI throttle. Optional `po_id`, `batch_id`, rework `entries`, and `image_base64`. Anomaly analysis always runs; without AI credentials it uses deterministic bilingual templates. Vision OCR requires a configured provider and otherwise returns `503 vision_ai_unavailable`. Reports use types `clone_cluster`, `ghost_production_attempt`, `rework_gap`, and `defect_cluster`.
 
 ## Health and trust metadata
 
-### Health
+### `GET /health`
 
-`GET /health` — public, general API throttle.
+Public. Returns dependency status for database, sodium compatibility, signing keys, AI mode, and blacklist gzip.
 
-Returns `200` when the database, sodium, and signing keys are ready; otherwise `503`.
+### `GET /.well-known/triproof-key.json`
 
-```json
-{
-  "success": true,
-  "message": "All critical dependencies are available.",
-  "data": {
-    "status": "ok",
-    "version": "1.0.0",
-    "php": "8.4.27",
-    "database": "up",
-    "sodium": "available",
-    "signing_keys": "configured",
-    "ai": "fallback_only",
-    "blacklist_gzip": "available",
-    "time": "2026-11-18T10:25:00+00:00"
-  }
-}
-```
-
-`ai` reports the configured provider name or `fallback_only`.
-
-### Public key
-
-`GET /.well-known/triproof-key.json` — public.
+Public. Publishes the issuer, algorithm, current public key, fingerprint, key ID, key ring, active/verify-only keys, rotation policy, serial contract, and offline trust model:
 
 ```json
 {
@@ -722,10 +441,17 @@ Returns `200` when the database, sodium, and signing keys are ready; otherwise `
   "data": {
     "issuer": "TriProof AI",
     "algorithm": "Ed25519",
-    "public_key_base64": "<32-byte base64 key>",
-    "key_fingerprint": "<sha256 hex>",
-    "key_id": "<first 32 hex characters>",
-    "serial_format": "{FactoryID}-{MachineID}-{BatchID}-{UnitNumber:06d}|{ProdYYYYMMDD}|{ExpYYYYMMDD}",
+    "public_key_base64": "<32-byte-base64-key>",
+    "key_fingerprint": "<sha256-hex>",
+    "key_id": "<first-32-hex-chars>",
+    "key_rotation_months": 6,
+    "key_ring": [
+      {"version":"K00","public_key_base64":"<base64>","status":"active","fingerprint":"<sha256-hex>"}
+    ],
+    "active_keys": {"global":"K00","buyers":{}},
+    "verify_only_keys": [],
+    "serial_format": "{KEY_VER}-{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{PROD_DATE}|{EXP_DATE}|DPP:{DPP_DIGEST}",
+    "legacy_serial_format": "{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{PROD_DATE}|{EXP_DATE}",
     "inner_serial_format": "Base64(Ed25519 detached signature of outer serial)",
     "unit_hash": "SHA-256(outer_serial + \"|\" + inner_serial)",
     "offline_trust_model": "Verify the Ed25519 signature locally; cloud cross-check establishes ownership and recall state."
@@ -733,101 +459,37 @@ Returns `200` when the database, sodium, and signing keys are ready; otherwise `
 }
 ```
 
-If the public key is missing or malformed, this endpoint returns `503 crypto_unconfigured`.
-Mobile clients should pin or cache the public key plus fingerprint, verify the detached
-signature offline, and use the online cross-check for claim, recall, expiry, and clone state.
+### `GET /v/{payload}`
+
+Public web page. Renders a product passport and DPP scorecard from a signed outer serial delivered by QR or smart URL. The outer QR contains `{APP_URL}/v/{OUTER_SERIAL}`; the inner QR contains only the private signature.
+
+## Enterprise V2 notes
+
+- Legacy `K00` serials remain unprefixed. V2 serials may start with `KNN-` and end with `|DPP:{8-HEX-DIGEST}`; the exact string is signed.
+- Rotate non-disruptively with `php artisan triproof:keys:rotate --key-version=K02 [--buyer=ID]` (positional version also accepted). Retired keys remain `verify_only`.
+- DPP metadata is canonicalized and `ksort`ed before computing `dpp_digest = strtoupper(substr(sha256(json),0,8))`.
+- Carton verification returns Merkle inclusion proofs over unit hashes.
+- The offline Bloom filter targets 30,000 entries within 240,000 bits and reports its measured false-positive rate (~2% at the cap). It is a warning, never a final verdict.
+- Device attestation adds signed monotonic `scan_seq`, `device_signature`, and optional `contact_hash`; replay is rejected with `409 scan_seq_replay`.
+- Local Merkle anchor receipts use `TRIPROOF-ANCHOR|{date}|{root}|{poIds}`; the API compatibility field remains `pending_phase_2`.
 
 ## cURL quick start
 
 ```bash
-BASE="https://your-domain.example/api/v1"
+BASE="https://<YOUR_DOMAIN>/api/v1"
 
 TOKEN=$(curl -sS -X POST "$BASE/auth/login" \
-  -H 'Accept: application/json' \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"buyer@example.com","password":"your-password"}' \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"email":"buyer@example.com","password":"<YOUR_PASSWORD>"}' \
   | jq -r '.data.token')
 
-curl -sS "$BASE/orders" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Accept: application/json' | jq
+curl -sS "$BASE/orders" -H "Authorization: Bearer $TOKEN" -H 'Accept: application/json' | jq
 
 curl -sS -X POST "$BASE/verify/online-crosscheck" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Accept: application/json' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "sync_uuid": "7b4e2f18-4c62-4a4e-9d3f-1f8b4f6f2b7a",
-    "outer_serial": "DHK04-M01-B01-000001|20261118|20271118",
-    "inner_serial": "<base64 Ed25519 signature>",
-    "device_token": "android-warehouse-17",
-    "scan_mode": "online_live",
-    "gps_lat": 23.8103,
-    "gps_lng": 90.4125
-  }' | jq
-
-curl -sS -X POST "$BASE/auth/logout" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Accept: application/json' | jq
-```
-
-CSV/PDF exports return binary bodies rather than JSON:
-
-```bash
-curl -sS "$BASE/orders/12/export?format=csv&batch=B01" \
-  -H "Authorization: Bearer $TOKEN" \
-  -o batch-B01.csv
-```
-
-## Enterprise V2 additions
-
-### Versioned keys and DPP serials
-
-Legacy v1 serials remain unprefixed and are treated as `K00` using the `.env` universal public key.
-When a purchase order carries `dpp_metadata`, new serials use:
-
-```
-{KNN}-{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{ProdYYYYMMDD}|{ExpYYYYMMDD}|DPP:{8-HEX-DIGEST}
-```
-
-The complete string is signed with the buyer's active key (or the global active key). `/.well-known/triproof-key.json`
-and login expose `key_ring`, `active_keys` and `verify_only_keys` with SHA-256 fingerprints. Retired keys stay in
-`verify_only` status so existing inventory remains verifiable.
-
-Rotate with `php artisan triproof:keys:rotate --key-version=K02 [--buyer=ID]`. Laravel reserves the global `--version`
-option, so the command accepts `--key-version` or a positional version argument.
-
-### Carton aggregation
-
-```bash
-curl -sS -X POST "$BASE/cartons/aggregate" \
   -H "Authorization: Bearer $TOKEN" -H 'Accept: application/json' \
-  -d 'po_id=12&factory_id=DHK04&batch_id=B09&outer_serial[]=...&outer_serial[]=...' | jq
+  -H 'Content-Type: application/json' \
+  -d '{"sync_uuid":"7b4e2f18-4c62-4a4e-9d3f-1f8b4f6f2b7a","outer_serial":"DHK04-M01-B01-000001|20261120|20271120","inner_serial":"<base64-signature>","device_token":"scanner-17"}' | jq
 
-curl -sS "$BASE/cartons/CTN-K01-DHK04-B09-0001/verify" \
-  -H "Authorization: Bearer $TOKEN" | jq
+curl -sS "$BASE/orders/12/export?format=csv&batch=B01" \
+  -H "Authorization: Bearer $TOKEN" -o batch-B01.csv
 ```
-
-The returned `qr_payload` is `CTN-...|merkle_root|unit_count|signature`. Verification returns a signed manifest and
-Merkle inclusion proofs for every unit.
-
-### Bloom-filter offline blacklist
-
-The v1 JSON package is unchanged for old clients and now includes optional `bloom` parameters
-(`bloom_bits_b64`, `m_bits`, `k_hashes`, `seed`, `entries`, `estimated_fp_rate`). The binary Bloom filter carries
-30,000 target entries while the gzip+Base64 response stays below 50 KB. The bit budget yields roughly **1%**
-false-positive rate at that size; the exact estimate is in the package. A probable hit is an amber "connect to
-confirm" warning, never a final counterfeit verdict.
-
-### Device attestation and replay protection
-
-Register a raw Base64 Ed25519 public key with `POST /devices/attest`. Cross-check logs may include
-`scan_seq`, `device_signature` over `{sync_uuid}|{scan_seq}|{outer_serial}`, and `contact_hash` (SHA-256 of a
-consumer contact). For attested devices, a non-increasing `scan_seq` is rejected with `scan_seq_replay` (409),
-an invalid signature with `device_signature_invalid` (422). Clone/recall verdicts write the in-app inbox and
-dispatch an optional webhook from `ALERT_WEBHOOK_URL`.
-
-### Public smart URL
-
-`GET /v/{payload}` is public and renders the product passport for a standard phone camera. The outer QR
-contains `{APP_URL}/v/{OUTER_SERIAL}`; the inner QR contains the private signature only.

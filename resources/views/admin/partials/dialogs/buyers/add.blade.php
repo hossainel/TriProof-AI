@@ -13,6 +13,7 @@
         <form method="POST" action="{{ route('admin.buyers.store') }}" class="space-y-4 p-6">
             @csrf
             <input type="hidden" name="dialog_id" value="add-buyer-dialog">
+            <input type="hidden" name="active_tab" value="admin-buyers">
 
             @php($isCurrentDialog = old('dialog_id') === 'add-buyer-dialog')
 
@@ -77,6 +78,7 @@
 
                 <input type="hidden" name="id" value="{{ $buyer->id }}">
                 <input type="hidden" name="dialog_id" value="edit-buyer-{{ $buyer->id }}">
+                <input type="hidden" name="active_tab" value="admin-buyers">
 
                 @php($isCurrentDialog = old('dialog_id') === 'edit-buyer-' . $buyer->id)
 

@@ -41,7 +41,15 @@
     <title>@yield('page-title', __('triproof.dashboard.title')) · {{ __('triproof.app.name') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-full" data-open-dialog="{{ old('dialog_id') ?? session('open_dialog') }}" data-active-tab="{{ old('active_tab') ?? session('active_tab') ?? '' }}">
+@php
+    $openDialog = $errors->any() ? (old('dialog_id') ?: session('open_dialog')) : null;
+    $activeTab = old('active_tab') ?: session('active_tab');
+@endphp
+<body
+    class="min-h-full"
+    @if (!empty($openDialog)) data-open-dialog="{{ $openDialog }}" @endif
+    @if (!empty($activeTab)) data-active-tab="{{ $activeTab }}" @endif
+>
     <a class="skip-link" href="#main-content">{{ __('triproof.nav.dashboard') }}</a>
 
     <div id="sidebar-overlay" class="fixed inset-0 z-40 hidden bg-ink-950/70 backdrop-blur-sm lg:hidden" aria-hidden="true"></div>

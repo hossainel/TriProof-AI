@@ -7,6 +7,8 @@
     $defaultRetailDays = (int) ($platformSettings['default_retail_expiry_days'] ?? config('triproof.factory.default_retail_expiry_days'));
 @endphp
 
+<script type="application/json" id="triproof-packable-data">@json($packableSummary ?? [])</script>
+
 @if ($canCreate)
     <dialog id="create-order-dialog" class="tp-dialog" aria-labelledby="create-order-title">
         <div class="tp-dialog-panel">
@@ -43,7 +45,7 @@
                         <select id="create-buyer" name="buyer_id" class="select" required>
                             <option value="">{{ __('triproof.forms.create_order.select_buyer') }}</option>
                             @foreach ($buyers as $buyer)
-                                <option value="{{ $buyer->id }}">{{ $buyer->name }} · {{ $buyer->email }}</option>
+                                <option value="{{ $buyer->id }}" @selected($isCurrentDialog && (string) old('buyer_id') === (string) $buyer->id)>{{ $buyer->name }} · {{ $buyer->email }}</option>
                             @endforeach
                         </select>
                         @if ($buyers->isEmpty())
@@ -57,7 +59,7 @@
                     <select id="create-factory" name="factory_id" class="select" required>
                         <option value="">{{ __('triproof.forms.create_order.select_factory') }}</option>
                         @foreach ($factories as $factory)
-                            <option value="{{ $factory->code }}">{{ $factory->code }} · {{ $factory->name_en }}</option>
+                            <option value="{{ $factory->code }}" @selected($isCurrentDialog && old('factory_id') === $factory->code)>{{ $factory->code }} · {{ $factory->name_en }}</option>
                         @endforeach
                     </select>
                     @if ($factories->isEmpty())
@@ -138,15 +140,26 @@
 
             @php($isCurrentDialog = old('dialog_id') === 'generate-dialog')
 
+            @if ($isCurrentDialog && $errors->any())
+                <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                    {{ __('triproof.common.validation_errors') }}
+                    <ul class="mt-1 list-disc list-inside space-y-1">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label for="generate-machine" class="label">{{ __('triproof.forms.generate.machine') }}</label>
-                    <input id="generate-machine" name="machine_id" type="text" class="input" maxlength="16" placeholder="M12" required autocomplete="off">
+                    <input id="generate-machine" name="machine_id" type="text" class="input" maxlength="16" placeholder="M12" value="{{ $isCurrentDialog ? old('machine_id') : '' }}" required autocomplete="off">
                     <p class="hint mt-1">{{ __('triproof.forms.generate.machine_hint') }}</p>
                 </div>
                 <div>
                     <label for="generate-batch" class="label">{{ __('triproof.forms.generate.batch') }}</label>
-                    <input id="generate-batch" name="batch_id" type="text" class="input" maxlength="16" placeholder="B09" required autocomplete="off">
+                    <input id="generate-batch" name="batch_id" type="text" class="input" maxlength="16" placeholder="B09" value="{{ $isCurrentDialog ? old('batch_id') : '' }}" required autocomplete="off">
                     <p class="hint mt-1">{{ __('triproof.forms.generate.batch_hint') }}</p>
                 </div>
             </div>
@@ -154,7 +167,7 @@
             <div class="grid gap-4 sm:grid-cols-3">
                 <div>
                     <label for="generate-start" class="label">{{ __('triproof.forms.generate.unit_start') }}</label>
-                    <input id="generate-start" name="unit_start" type="number" class="input" min="1" max="999999" placeholder="1">
+                    <input id="generate-start" name="unit_start" type="number" class="input" min="1" max="999999" placeholder="1" value="{{ $isCurrentDialog ? old('unit_start') : '' }}">
                     <p class="hint mt-1">{{ __('triproof.forms.generate.unit_start_hint') }}</p>
                 </div>
                 <div>
@@ -184,7 +197,20 @@
     </div>
 </dialog>
 
-<dialog id="pack-dialog" class="tp-dialog" aria-labelledby="pack-title">
+<dialog
+    id="pack-dialog"
+    class="tp-dialog"
+    aria-labelledby="pack-title"
+    data-remaining-label-template="{{ __('triproof.forms.pack.remaining', ['count' => '__COUNT__']) }}"
+    data-suggested-range-template="{{ __('triproof.forms.pack.suggested_range', ['min' => '__MIN__', 'max' => '__MAX__']) }}"
+    data-batch-template="{{ __('triproof.forms.pack.batch_summary', ['machine' => '__MACHINE__', 'batch' => '__BATCH__', 'count' => '__COUNT__', 'min' => '__MIN__', 'max' => '__MAX__']) }}"
+    data-batch-zero-template="{{ __('triproof.forms.pack.batch_zero', ['machine' => '__MACHINE__', 'batch' => '__BATCH__']) }}"
+    data-use-range-template="{{ __('triproof.forms.pack.use_full_range', ['min' => '__MIN__', 'max' => '__MAX__']) }}"
+    data-all-packed-label="{{ __('triproof.forms.pack.all_packed') }}"
+    data-batch-empty-label="{{ __('triproof.forms.pack.batch_empty') }}"
+    data-no-match-label="{{ __('triproof.forms.pack.no_match') }}"
+    data-select-batch-label="{{ __('triproof.forms.pack.select_batch') }}"
+>
     <div class="tp-dialog-panel">
         <button type="button" class="dialog-close" data-close-dialog aria-label="{{ __('triproof.common.close') }}">
             <x-icon name="close" class="h-5 w-5" />
@@ -198,34 +224,61 @@
                 <span class="font-semibold text-slate-600">{{ __('triproof.forms.pack.context') }}:</span>
                 <span class="font-mono" data-dialog-context>—</span>
             </div>
+
+            <div class="mt-3 rounded-xl border border-sky-200 bg-gradient-to-br from-sky-50 to-emerald-50 px-3 py-3" data-pack-suggestion>
+                <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <p class="text-[11px] font-semibold text-sky-900" data-pack-remaining>—</p>
+                    <p class="text-[11px] font-medium text-emerald-700" data-pack-range></p>
+                </div>
+                <p class="mt-1 hidden rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[11px] font-medium text-emerald-700" data-pack-empty>
+                    {{ __('triproof.forms.pack.all_packed') }}
+                </p>
+                <div class="mt-2 flex flex-wrap gap-1.5" data-pack-chips></div>
+            </div>
         </div>
 
         <form method="POST" action="#" data-dynamic-action class="space-y-4 p-6">
             @csrf
             <input type="hidden" name="dialog_id" value="pack-dialog">
+            @php($isCurrentDialog = old('dialog_id') === 'pack-dialog')
+
+            @if ($isCurrentDialog && $errors->any())
+                <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                    {{ __('triproof.common.validation_errors') }}
+                    <ul class="mt-1 list-disc list-inside space-y-1">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label for="pack-machine" class="label">{{ __('triproof.forms.pack.machine') }}</label>
-                    <input id="pack-machine" name="machine_id" type="text" class="input" maxlength="32" required autocomplete="off">
+                    <input id="pack-machine" name="machine_id" type="text" class="input" maxlength="32" value="{{ $isCurrentDialog ? old('machine_id') : '' }}" required autocomplete="off">
                 </div>
                 <div>
                     <label for="pack-batch" class="label">{{ __('triproof.forms.pack.batch') }}</label>
-                    <input id="pack-batch" name="batch_id" type="text" class="input" maxlength="32" required autocomplete="off">
+                    <input id="pack-batch" name="batch_id" type="text" class="input" maxlength="32" value="{{ $isCurrentDialog ? old('batch_id') : '' }}" required autocomplete="off">
                 </div>
             </div>
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label for="pack-start" class="label">{{ __('triproof.forms.pack.start') }}</label>
-                    <input id="pack-start" name="unit_start" type="number" class="input" min="1" max="999999" placeholder="1">
+                    <input id="pack-start" name="unit_start" type="number" class="input" min="1" max="999999" value="{{ $isCurrentDialog ? old('unit_start') : '' }}" placeholder="1">
                 </div>
                 <div>
                     <label for="pack-end" class="label">{{ __('triproof.forms.pack.end') }}</label>
-                    <input id="pack-end" name="unit_end" type="number" class="input" min="1" max="999999" placeholder="100">
+                    <input id="pack-end" name="unit_end" type="number" class="input" min="1" max="999999" value="{{ $isCurrentDialog ? old('unit_end') : '' }}" placeholder="100">
                 </div>
             </div>
-            <p class="hint">{{ __('triproof.forms.pack.range_hint') }}</p>
+
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="hint">{{ __('triproof.forms.pack.range_hint') }}</p>
+                <button type="button" class="hidden text-[11px] font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-800" data-pack-use-range></button>
+            </div>
 
             <div class="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
                 <button type="button" class="btn btn-ghost" data-close-dialog>{{ __('triproof.common.cancel') }}</button>
@@ -255,6 +308,19 @@
             @csrf
             <input type="hidden" name="dialog_id" value="recall-dialog">
 
+            @php($isCurrentDialog = old('dialog_id') === 'recall-dialog')
+
+            @if ($isCurrentDialog && $errors->any())
+                <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                    {{ __('triproof.common.validation_errors') }}
+                    <ul class="mt-1 list-disc list-inside space-y-1">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
                 {{ __('triproof.forms.recall.warning') }}
             </div>
@@ -262,21 +328,21 @@
             <div class="grid gap-4 sm:grid-cols-3">
                 <div>
                     <label for="recall-factory" class="label">{{ __('triproof.forms.recall.factory') }}</label>
-                    <input id="recall-factory" name="factory_id" type="text" class="input" maxlength="32" required autocomplete="off">
+                    <input id="recall-factory" name="factory_id" type="text" class="input" maxlength="32" value="{{ $isCurrentDialog ? old('factory_id') : '' }}" required autocomplete="off">
                 </div>
                 <div>
                     <label for="recall-machine" class="label">{{ __('triproof.forms.recall.machine') }}</label>
-                    <input id="recall-machine" name="machine_id" type="text" class="input" maxlength="32" required autocomplete="off">
+                    <input id="recall-machine" name="machine_id" type="text" class="input" maxlength="32" value="{{ $isCurrentDialog ? old('machine_id') : '' }}" required autocomplete="off">
                 </div>
                 <div>
                     <label for="recall-batch" class="label">{{ __('triproof.forms.recall.batch') }}</label>
-                    <input id="recall-batch" name="batch_id" type="text" class="input" maxlength="32" required autocomplete="off">
+                    <input id="recall-batch" name="batch_id" type="text" class="input" maxlength="32" value="{{ $isCurrentDialog ? old('batch_id') : '' }}" required autocomplete="off">
                 </div>
             </div>
 
             <div>
                 <label for="recall-reason" class="label">{{ __('triproof.forms.recall.reason') }}</label>
-                <textarea id="recall-reason" name="reason" class="textarea" maxlength="1000" rows="3"></textarea>
+                <textarea id="recall-reason" name="reason" class="textarea" maxlength="1000" rows="3">{{ $isCurrentDialog ? old('reason') : '' }}</textarea>
                 <p class="hint mt-1">{{ __('triproof.forms.recall.reason_hint') }}</p>
             </div>
 

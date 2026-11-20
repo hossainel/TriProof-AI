@@ -52,7 +52,38 @@ class PackingService
         $count = (clone $query)->count();
 
         if ($count === 0) {
-            throw new BusinessRuleException('nothing_to_pack', 'No generated units matched this packing request.');
+            $available = SerialRegistry::query()
+                ->where('po_id', $order->id)
+                ->where('status', SerialStatus::Generated->value)
+                ->select('machine_id', 'batch_id')
+                ->selectRaw('COUNT(*) as units')
+                ->selectRaw('MIN(unit_number) as min_unit')
+                ->selectRaw('MAX(unit_number) as max_unit')
+                ->groupBy('machine_id', 'batch_id')
+                ->orderBy('machine_id')
+                ->orderBy('batch_id')
+                ->get();
+
+            if ($available->isEmpty()) {
+                $message = __('triproof.validation.pack_all_packed', [
+                    'po' => $order->po_number,
+                ]);
+            } else {
+                $batches = $available->map(fn ($row) => __('triproof.validation.pack_available_batch', [
+                    'machine' => $row->machine_id,
+                    'batch' => $row->batch_id,
+                    'count' => $row->units,
+                    'min' => $row->min_unit,
+                    'max' => $row->max_unit,
+                ]))->implode('; ');
+
+                $message = __('triproof.validation.pack_no_match', [
+                    'po' => $order->po_number,
+                    'batches' => $batches,
+                ]);
+            }
+
+            throw new BusinessRuleException('nothing_to_pack', $message);
         }
 
         $query->update([

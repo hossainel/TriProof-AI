@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\UserRole;
 use App\Exceptions\BusinessRuleException;
+use App\Models\Factory;
 use App\Models\PurchaseOrder;
 use App\Models\SystemSetting;
 use App\Models\User;
@@ -34,9 +35,9 @@ class PurchaseOrderService
         }
 
         $factoryId = strtoupper(trim((string) ($data['factory_id'] ?? '')));
-        $factoryExists = User::query()
-            ->where('role', UserRole::FactoryQa)
-            ->where('factory_id', $factoryId)
+        $factoryExists = Factory::query()
+            ->where('code', $factoryId)
+            ->where('is_active', true)
             ->exists();
 
         if (! $factoryExists) {

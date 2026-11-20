@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Factory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -19,6 +20,12 @@ class ApiFlowTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        Factory::query()->create([
+            'code' => 'DHK04',
+            'name_en' => 'Dhaka Apparel Unit 04',
+            'is_active' => true,
+        ]);
 
         $this->buyer = User::factory()->buyer()->create([
             'email' => 'api-buyer@example.test',

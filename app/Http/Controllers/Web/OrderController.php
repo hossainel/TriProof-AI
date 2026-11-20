@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -24,14 +25,26 @@ class OrderController extends Controller
 {
     public function store(Request $request, PurchaseOrderService $service): RedirectResponse
     {
+        $request->merge([
+            'factory_id' => strtoupper(trim((string) $request->input('factory_id'))),
+        ]);
+
         $data = $request->validate([
             'po_number' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9._\/-]+$/'],
             'buyer_id' => ['nullable', 'integer', 'exists:users,id'],
-            'factory_id' => ['required', 'string', 'max:32', 'regex:/^[A-Za-z0-9][A-Za-z0-9-]{1,31}$/'],
+            'factory_id' => [
+                'required',
+                'string',
+                'max:32',
+                'regex:/^[A-Za-z0-9][A-Za-z0-9-]{1,31}$/',
+                Rule::exists('factories', 'code')->where('is_active', true),
+            ],
             'authorized_quota' => ['required', 'integer', 'min:1', 'max:1000000'],
             'factory_expiry_days' => ['required', 'integer', 'min:1', 'max:365'],
             'retail_expiry_days' => ['required', 'integer', 'min:1', 'max:3650'],
             'dpp_metadata' => ['nullable', 'array', 'max:30'],
+        ], [
+            'factory_id.exists' => __('triproof.validation.factory_not_registered'),
         ]);
 
         if ($request->user()->isAdmin() && empty($data['buyer_id'])) {
@@ -44,11 +57,17 @@ class OrderController extends Controller
         try {
             $order = $service->create($request->user(), $data);
         } catch (BusinessRuleException $e) {
-            return back()->withErrors(['order' => $e->getMessage()])->withInput();
+            return back()
+                ->withErrors(['order' => $e->getMessage()])
+                ->withInput()
+                ->with('dialog_id', 'create-order-dialog');
         }
 
+        $message = __('triproof.flash.order_created', ['po' => $order->po_number]);
+
         return redirect()->route('dashboard')
-            ->with('success', __('triproof.flash.order_created', ['po' => $order->po_number]));
+            ->with('success', $message)
+            ->with('status', $message);
     }
 
     public function generate(
@@ -76,11 +95,14 @@ class OrderController extends Controller
                 ->with('dialog_id', 'generate-dialog');
         }
 
+        $message = __('triproof.flash.generated', [
+            'count' => $result['count'],
+            'batch' => $po->factory_id.'-'.strtoupper((string) $data['machine_id']).'-'.strtoupper((string) $data['batch_id']),
+        ]);
+
         return redirect()->route('dashboard')
-            ->with('success', __('triproof.flash.generated', [
-                'count' => $result['count'],
-                'batch' => $po->factory_id.'-'.strtoupper((string) $data['machine_id']).'-'.strtoupper((string) $data['batch_id']),
-            ]))
+            ->with('success', $message)
+            ->with('status', $message)
             ->with('generated', [
                 'po_id' => $po->id,
                 'po_number' => $po->po_number,
@@ -115,11 +137,14 @@ class OrderController extends Controller
                 ->with('dialog_id', 'pack-dialog');
         }
 
+        $message = __('triproof.flash.packed', [
+            'count' => $result['packed_count'],
+            'batch' => $result['batch'],
+        ]);
+
         return redirect()->route('dashboard')
-            ->with('success', __('triproof.flash.packed', [
-                'count' => $result['packed_count'],
-                'batch' => $result['batch'],
-            ]));
+            ->with('success', $message)
+            ->with('status', $message);
     }
 
     public function export(
@@ -244,12 +269,15 @@ class OrderController extends Controller
                 ->with('dialog_id', 'recall-dialog');
         }
 
+        $message = __('triproof.flash.recalled', [
+            'count' => $result['affected_units'],
+            'batch' => $result['batch'],
+            'devices' => $result['devices_notified'],
+        ]);
+
         return redirect()->route('dashboard')
-            ->with('success', __('triproof.flash.recalled', [
-                'count' => $result['affected_units'],
-                'batch' => $result['batch'],
-                'devices' => $result['devices_notified'],
-            ]))
+            ->with('success', $message)
+            ->with('status', $message)
             ->with('recall_result', $result);
     }
 

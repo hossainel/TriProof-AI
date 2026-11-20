@@ -11,6 +11,12 @@ const ready = (callback) => {
     }
 };
 
+function byId(rawId) {
+    if (typeof rawId !== 'string') return null;
+    const id = rawId.replace(/^#/, '').trim();
+    return id.length > 0 ? document.getElementById(id) : null;
+}
+
 ready(() => {
     initSidebar();
     initNavigationAndTabs();
@@ -20,13 +26,13 @@ ready(() => {
     initChart();
     initMap();
     initCopyButtons();
-    initConfirmation();
+    initFormSubmissions();
 });
 
 /* ---------- Sidebar drawer ---------- */
 function openSidebar() {
-    const sidebar = document.getElementById('app-sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
+    const sidebar = byId('app-sidebar');
+    const overlay = byId('sidebar-overlay');
     if (!sidebar || !overlay) return;
     sidebar.classList.remove('-translate-x-full');
     sidebar.classList.add('translate-x-0');
@@ -37,8 +43,8 @@ function openSidebar() {
 }
 
 function closeSidebar() {
-    const sidebar = document.getElementById('app-sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
+    const sidebar = byId('app-sidebar');
+    const overlay = byId('sidebar-overlay');
     if (!sidebar || !overlay) return;
     sidebar.classList.add('-translate-x-full');
     sidebar.classList.remove('translate-x-0');
@@ -47,8 +53,8 @@ function closeSidebar() {
 }
 
 function initSidebar() {
-    const sidebar = document.getElementById('app-sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
+    const sidebar = byId('app-sidebar');
+    const overlay = byId('sidebar-overlay');
     if (!sidebar || !overlay) return;
 
     window.addEventListener('resize', () => {
@@ -93,7 +99,9 @@ function initNavigationAndTabs() {
         });
     }
     window.addEventListener('hashchange', () => {
-        syncNavigationAndTabs(window.location.hash.replace(/^#/, ''));
+        const hash = window.location.hash.replace(/^#/, '').trim();
+        if (!hash && !document.body.dataset.activeTab) return;
+        syncNavigationAndTabs(hash);
     });
     syncNavigationAndTabs();
 }
@@ -138,7 +146,7 @@ function syncNavigationAndTabs(hashOverride) {
         const linkHash = href.replace(/^#/, '');
         if (targetHash && linkHash === targetHash && window.innerWidth >= 1024) {
             link.classList.add('nav-link-active');
-            const target = document.getElementById(targetHash);
+            const target = byId(targetHash);
             if (target) {
                 target.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
@@ -185,30 +193,25 @@ function openTpDialog(dialog, triggerBtn = null) {
             }
         }
 
-        if (triggerBtn.dataset.resetScope) {
-            ['recall-factory', 'recall-machine', 'recall-batch'].forEach((id) => {
+        if (dialog.id === 'recall-dialog') {
+            if (triggerBtn.dataset.resetScope) {
+                ['recall-factory', 'recall-machine', 'recall-batch'].forEach((id) => {
+                    const el = dialog.querySelector('#' + id);
+                    if (el) el.value = '';
+                });
+            }
+
+            const scopeValues = {
+                'recall-factory': triggerBtn.dataset.factory,
+                'recall-machine': triggerBtn.dataset.machine,
+                'recall-batch': triggerBtn.dataset.batch,
+            };
+
+            Object.entries(scopeValues).forEach(([id, value]) => {
+                if (!value) return;
                 const el = dialog.querySelector('#' + id);
-                if (el) el.value = '';
+                if (el) el.value = value;
             });
-            const factory = triggerBtn.dataset.factory;
-            const machine = triggerBtn.dataset.machine;
-            const batch = triggerBtn.dataset.batch;
-            if (factory) {
-                const f = dialog.querySelector('#recall-factory');
-                if (f) f.value = factory;
-            }
-            if (machine) {
-                const m = dialog.querySelector('#recall-machine');
-                if (m) m.value = machine;
-                const pm = dialog.querySelector('#pack-machine');
-                if (pm) pm.value = machine;
-            }
-            if (batch) {
-                const b = dialog.querySelector('#recall-batch');
-                if (b) b.value = batch;
-                const pb = dialog.querySelector('#pack-batch');
-                if (pb) pb.value = batch;
-            }
         }
 
         if (triggerBtn.dataset.merkleUrl) {
@@ -261,9 +264,21 @@ function openTpDialog(dialog, triggerBtn = null) {
         }
     }
 
+    if (dialog.id === 'pack-dialog') {
+        initPackDialog(dialog, triggerBtn);
+    }
+
+    if (dialog.hasAttribute('open')) {
+        dialog.removeAttribute('open');
+    }
+
     if (!dialog.open) {
         if (typeof dialog.showModal === 'function') {
-            dialog.showModal();
+            try {
+                dialog.showModal();
+            } catch {
+                dialog.setAttribute('open', '');
+            }
         } else {
             dialog.setAttribute('open', '');
         }
@@ -278,6 +293,258 @@ function closeTpDialog(dialog) {
     dialog.removeAttribute('open');
 }
 
+/* ---------- Pack dialog suggestions ---------- */
+let packableDataCache = null;
+
+function getPackableData() {
+    if (packableDataCache !== null) return packableDataCache;
+
+    const dataElement = byId('triproof-packable-data');
+    if (!dataElement) {
+        packableDataCache = {};
+        return packableDataCache;
+    }
+
+    try {
+        packableDataCache = JSON.parse(dataElement.textContent || '{}');
+    } catch {
+        packableDataCache = {};
+    }
+
+    return packableDataCache;
+}
+
+function uppercaseTrim(value) {
+    return String(value || '').trim().toUpperCase();
+}
+
+function fillTemplate(template, replacements) {
+    let output = String(template || '');
+    Object.entries(replacements).forEach(([key, value]) => {
+        output = output.replaceAll(`__${key}__`, String(value));
+    });
+    return output;
+}
+
+function findPackableBatch(batches, machine, batch) {
+    const normalizedMachine = uppercaseTrim(machine);
+    const normalizedBatch = uppercaseTrim(batch);
+
+    if (!normalizedMachine && !normalizedBatch) return null;
+
+    const matches = batches.filter((entry) => {
+        const entryMachine = uppercaseTrim(entry.machine_id);
+        const entryBatch = uppercaseTrim(entry.batch_id);
+        return (!normalizedMachine || entryMachine === normalizedMachine)
+            && (!normalizedBatch || entryBatch === normalizedBatch);
+    });
+
+    return matches.find((entry) => Number(entry.remaining_count) > 0) || matches[0] || null;
+}
+
+function initPackDialog(dialog, triggerBtn) {
+    const machineInput = dialog.querySelector('#pack-machine');
+    const batchInput = dialog.querySelector('#pack-batch');
+    const startInput = dialog.querySelector('#pack-start');
+    const endInput = dialog.querySelector('#pack-end');
+
+    if (dialog.dataset.packListenersBound !== '1') {
+        const updateSuggestions = () => updatePackDialogSuggestions(dialog);
+
+        machineInput?.addEventListener('input', updateSuggestions);
+        batchInput?.addEventListener('input', updateSuggestions);
+
+        dialog.querySelector('[data-pack-use-range]')?.addEventListener('click', (event) => {
+            event.preventDefault();
+            const min = dialog.dataset.packMin || '';
+            const max = dialog.dataset.packMax || '';
+            if (min && startInput) startInput.value = min;
+            if (max && endInput) endInput.value = max;
+        });
+
+        dialog.addEventListener('click', (event) => {
+            const chip = event.target.closest('[data-pack-chip]');
+            if (!chip) return;
+
+            event.preventDefault();
+            if (machineInput) machineInput.value = chip.dataset.machine || '';
+            if (batchInput) batchInput.value = chip.dataset.batch || '';
+            if (startInput) startInput.value = '';
+            if (endInput) endInput.value = '';
+            updateSuggestions();
+        });
+
+        dialog.dataset.packListenersBound = '1';
+    }
+
+    if (triggerBtn) {
+        const action = dialog.querySelector('form[data-dynamic-action]')?.getAttribute('action') || '';
+        const actionOrderId = action.match(/\/orders\/(\d+)\/pack(?:\?|$)/)?.[1] || '';
+        const orderId = triggerBtn.dataset.orderId || actionOrderId;
+
+        if (orderId) {
+            dialog.dataset.packOrderId = orderId;
+        } else {
+            delete dialog.dataset.packOrderId;
+        }
+
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+
+        if (triggerBtn.dataset.machine || triggerBtn.dataset.batch) {
+            if (machineInput) machineInput.value = triggerBtn.dataset.machine || '';
+            if (batchInput) batchInput.value = triggerBtn.dataset.batch || '';
+        } else {
+            if (machineInput) machineInput.value = '';
+            if (batchInput) batchInput.value = '';
+
+            const summary = getPackableData()[orderId];
+            const batches = Array.isArray(summary?.batches) ? summary.batches : [];
+            if (batches.length === 1) {
+                if (machineInput) machineInput.value = batches[0].machine_id || '';
+                if (batchInput) batchInput.value = batches[0].batch_id || '';
+            }
+        }
+    }
+
+    updatePackDialogSuggestions(dialog);
+}
+
+function updatePackDialogSuggestions(dialog) {
+    const panel = dialog.querySelector('[data-pack-suggestion]');
+    const remainingLabel = dialog.querySelector('[data-pack-remaining]');
+    const rangeLabel = dialog.querySelector('[data-pack-range]');
+    const emptyNotice = dialog.querySelector('[data-pack-empty]');
+    const chipsContainer = dialog.querySelector('[data-pack-chips]');
+    const rangeButton = dialog.querySelector('[data-pack-use-range]');
+    const machineInput = dialog.querySelector('#pack-machine');
+    const batchInput = dialog.querySelector('#pack-batch');
+    const startInput = dialog.querySelector('#pack-start');
+    const endInput = dialog.querySelector('#pack-end');
+    const orderId = dialog.dataset.packOrderId || '';
+    const summary = getPackableData()[orderId];
+
+    if (!orderId || !summary) {
+        panel?.classList.add('hidden');
+        rangeButton?.classList.add('hidden');
+        chipsContainer?.replaceChildren();
+        return;
+    }
+
+    panel?.classList.remove('hidden');
+
+    const availableBatches = Array.isArray(summary.batches) ? summary.batches : [];
+    const allBatches = Array.isArray(summary.all_batches) ? summary.all_batches : availableBatches;
+    const totalRemaining = Number(summary.total_remaining || 0);
+    const machine = machineInput?.value || '';
+    const batch = batchInput?.value || '';
+    const matched = findPackableBatch(allBatches, machine, batch);
+    const matchedRemaining = matched ? Number(matched.remaining_count || 0) : 0;
+    const scopeEntered = Boolean(uppercaseTrim(machine) || uppercaseTrim(batch));
+    const remainingCount = matched ? matchedRemaining : totalRemaining;
+    const showEmpty = totalRemaining === 0;
+    const hasRange = Boolean(
+        matched
+        && matchedRemaining > 0
+        && matched.min_unit !== null
+        && matched.min_unit !== undefined
+        && matched.max_unit !== null
+        && matched.max_unit !== undefined
+    );
+    const rangeMin = hasRange ? Number(matched.min_unit) : null;
+    const rangeMax = hasRange ? Number(matched.max_unit) : null;
+    const validRange = hasRange && Number.isFinite(rangeMin) && Number.isFinite(rangeMax);
+
+    if (remainingLabel) {
+        remainingLabel.textContent = fillTemplate(dialog.dataset.remainingLabelTemplate, {
+            COUNT: remainingCount,
+        });
+    }
+
+    if (emptyNotice) {
+        if (dialog.dataset.allPackedLabel) {
+            emptyNotice.textContent = dialog.dataset.allPackedLabel;
+        }
+        emptyNotice.classList.toggle('hidden', !showEmpty);
+    }
+
+    let rangeText = '';
+    if (!showEmpty) {
+        if (validRange) {
+            rangeText = fillTemplate(dialog.dataset.suggestedRangeTemplate, {
+                MIN: rangeMin,
+                MAX: rangeMax,
+            });
+        } else if (matched && matchedRemaining === 0) {
+            rangeText = dialog.dataset.batchEmptyLabel || '';
+        } else if (scopeEntered) {
+            rangeText = dialog.dataset.noMatchLabel || '';
+        } else if (availableBatches.length > 0) {
+            rangeText = dialog.dataset.selectBatchLabel || '';
+        }
+    }
+
+    if (rangeLabel) {
+        rangeLabel.textContent = rangeText;
+        rangeLabel.classList.toggle('hidden', rangeText === '');
+    }
+
+    if (startInput) startInput.placeholder = validRange ? String(rangeMin) : '1';
+    if (endInput) endInput.placeholder = validRange ? String(rangeMax) : '100';
+
+    if (rangeButton) {
+        rangeButton.classList.toggle('hidden', !validRange);
+        if (validRange) {
+            rangeButton.textContent = fillTemplate(dialog.dataset.useRangeTemplate, {
+                MIN: rangeMin,
+                MAX: rangeMax,
+            });
+        }
+    }
+
+    dialog.dataset.packMin = validRange ? String(rangeMin) : '';
+    dialog.dataset.packMax = validRange ? String(rangeMax) : '';
+
+    if (!chipsContainer) return;
+    chipsContainer.replaceChildren();
+
+    allBatches.forEach((entry) => {
+        const count = Number(entry.remaining_count || 0);
+        const isActive = Boolean(
+            matched
+            && uppercaseTrim(entry.machine_id) === uppercaseTrim(matched.machine_id)
+            && uppercaseTrim(entry.batch_id) === uppercaseTrim(matched.batch_id)
+        );
+
+        const chip = document.createElement(count > 0 ? 'button' : 'span');
+        if (count > 0) {
+            chip.type = 'button';
+            chip.dataset.packChip = '1';
+            chip.dataset.machine = entry.machine_id || '';
+            chip.dataset.batch = entry.batch_id || '';
+            chip.setAttribute('aria-pressed', String(isActive));
+            chip.className = isActive
+                ? 'inline-flex items-center rounded-full border border-emerald-400 bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold text-emerald-800 transition'
+                : 'inline-flex items-center rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-50';
+            chip.textContent = fillTemplate(dialog.dataset.batchTemplate, {
+                MACHINE: entry.machine_id,
+                BATCH: entry.batch_id,
+                COUNT: count,
+                MIN: entry.min_unit,
+                MAX: entry.max_unit,
+            });
+        } else {
+            chip.className = 'inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-medium text-slate-400';
+            chip.textContent = fillTemplate(dialog.dataset.batchZeroTemplate, {
+                MACHINE: entry.machine_id,
+                BATCH: entry.batch_id,
+            });
+        }
+
+        chipsContainer.append(chip);
+    });
+}
+
 /* ---------- Dialog delegation ---------- */
 function initDialogs() {
     document.addEventListener('click', (event) => {
@@ -285,7 +552,8 @@ function initDialogs() {
         if (openBtn) {
             event.preventDefault();
             const targetId = openBtn.getAttribute('data-open-dialog');
-            openTpDialog(document.getElementById(targetId), openBtn);
+            if (!targetId || !targetId.trim()) return;
+            openTpDialog(byId(targetId), openBtn);
             return;
         }
         const closeBtn = event.target.closest('[data-close-dialog]');
@@ -307,8 +575,8 @@ function initDialogs() {
                 closeTpDialog(openDialog);
                 return;
             }
-            const sidebar = document.getElementById('app-sidebar');
-            const overlay = document.getElementById('sidebar-overlay');
+            const sidebar = byId('app-sidebar');
+            const overlay = byId('sidebar-overlay');
             if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
                 event.preventDefault();
                 closeSidebar();
@@ -321,8 +589,8 @@ function initDialogs() {
 function initAutoOpenDialog() {
     const body = document.body;
     const targetId = body.dataset.openDialog || '';
-    if (!targetId) return;
-    const dialog = document.getElementById(targetId);
+    if (!targetId || !targetId.trim()) return;
+    const dialog = byId(targetId);
     if (!dialog) return;
     const panel = dialog.closest('.tab-panel');
     if (panel) {
@@ -349,8 +617,8 @@ function initAutoOpenDialog() {
 /* ---------- Chart.js ---------- */
 function initChart() {
     try {
-        const canvas = document.getElementById('triproof-chart');
-        const dataElement = document.getElementById('triproof-chart-data');
+        const canvas = byId('triproof-chart');
+        const dataElement = byId('triproof-chart-data');
         if (!canvas || !dataElement) return;
         const data = JSON.parse(dataElement.textContent || '{}');
         const values = Array.isArray(data.values) ? data.values : [];
@@ -403,8 +671,8 @@ function initChart() {
 /* ---------- Leaflet map ---------- */
 function initMap() {
     try {
-        const element = document.getElementById('triproof-map');
-        const dataElement = document.getElementById('triproof-map-markers');
+        const element = byId('triproof-map');
+        const dataElement = byId('triproof-map-markers');
         if (!element || !dataElement) return;
         const payload = JSON.parse(dataElement.textContent || '{}');
         const markers = Array.isArray(payload.markers) ? payload.markers : [];
@@ -499,13 +767,30 @@ function initLocaleSwitch() {
     });
 }
 
-/* ---------- Delete form confirmations ---------- */
-function initConfirmation() {
+/* ---------- Form confirmation & dialog submission lifecycle ---------- */
+function initFormSubmissions() {
     document.addEventListener('submit', (event) => {
-        if (event.target instanceof HTMLFormElement && event.target.hasAttribute('data-confirm')) {
-            if (!window.confirm(event.target.getAttribute('data-confirm'))) {
-                event.preventDefault();
-            }
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+
+        if (form.hasAttribute('data-confirm') && !window.confirm(form.getAttribute('data-confirm'))) {
+            event.preventDefault();
+            return;
         }
+
+        const dialog = form.closest('dialog.tp-dialog');
+        if (!dialog) return;
+
+        const submitter = event.submitter instanceof HTMLElement
+            ? event.submitter
+            : form.querySelector('button[type="submit"], input[type="submit"]');
+
+        if (submitter && 'disabled' in submitter) {
+            window.setTimeout(() => {
+                submitter.disabled = true;
+            }, 0);
+        }
+
+        closeTpDialog(dialog);
     });
 }

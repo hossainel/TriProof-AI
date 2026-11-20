@@ -1,64 +1,55 @@
 # TriProof AI
 
-TriProof AI is a production-grade supply-chain authenticity platform for global buyers and
-Bangladeshi factories. It signs every unit with an Ed25519 signature under a quota-locked
-purchase order, verifies labels offline and online, detects clone scans, runs precision batch
-recalls, reconstructs rework lineage, and produces bilingual English/Bangla compliance guidance.
+**Enterprise Supply-Chain Integrity & Anti-Counterfeiting Platform**
 
-The application is built with Laravel 12, native PHP sodium, MySQL/MariaDB, Blade, Tailwind CSS 4,
-Chart.js, Leaflet, and a provider-agnostic AI layer with a deterministic fallback.
+TriProof AI protects high-risk consumer supply chains with quota-locked purchase orders, Ed25519-signed unit labels, offline-first verification, deterministic bilingual anomaly detection, precision recalls, rework lineage, and auditable Merkle roots. The platform serves global buyers, Bangladeshi factories, administrators, station verifiers, and end consumers across a Laravel web console, a versioned JSON API, and a Flutter mobile verifier.
 
-The native Kotlin [TriProof AI Scanner](android/README.md) lives in `android/`. It verifies signed
-labels offline, stores scan history on the phone, and syncs it to this API when authenticated.
+Documentation: [Architecture](ARCHITECTURE.md) · [API reference](docs/API.md) · [Checkpoint](CHECKPOINT.md) · [Mobile client](mobile/README.md) · [Database schema](schema.sql) · [Environment template](.env.example)
 
-**Enterprise V2 adds** versioned `K01+` signing keys with buyer isolation and a published key ring,
-signed EU Digital Product Passport digests inside V2 serials, signed master-carton aggregation with
-Merkle inclusion proofs, a 30,000-entry Bloom filter in the 50 KB offline package, local Merkle
-anchor receipts, monotonic `scan_seq` replay protection, device-signature verification, and public
-`/v/{payload}` smart-URL passports. Legacy v1 serials and all existing endpoints remain compatible.
+## Cryptographic core
+
+- Ed25519 detached signatures over a canonical outer serial:
+  `{FACTORY}-{MACHINE}-{BATCH}-{UNIT:06d}|{PROD_DATE}|{EXP_DATE}`
+- Versioned key ring (`K00` legacy plus `K01+` active/verify-only keys), key rotation, buyer-scoped keys, and encrypted private material in `signing_keys`
+- Universal public key discovery at `/.well-known/triproof-key.json`
+- SHA-256 unit hashes and deterministic binary Merkle roots with `0x01` domain separation and odd-node promotion
+- Daily local Merkle anchor receipts via `php artisan triproof:anchor-merkle`
+- `paragonie/sodium_compat` provides universal PHP 8.2+/8.4+ and cPanel compatibility; native `ext-sodium` is used when available
+- V2 serials append `|DPP:{8-HEX-DIGEST}` and may carry a `KNN-` prefix; legacy `K00` serials remain verifiable
+
+## Feature matrix
+
+| Surface | Capabilities |
+|---|---|
+| **Administrator** (`/admin/manage`, `/dashboard`) | Add / edit / remove Global Buyers, Factories, and Factory QA Operators; Factory deletion guardrails for linked POs, serials, and users; Platform & Compliance Settings in `system_settings`; network KPIs; Chart.js unit-state analytics; Leaflet GPS risk geography; key ring and anchor audit cards |
+| **Global Buyer** | Quota-locked PO creation with factory packing window and retail expiry; signed batch generation; batch intelligence; deterministic English/বাংলা anomaly explanations; Merkle audit; precision recall; CSV/PDF exports |
+| **Factory QA** | Row-locked atomic serial signing (`generate`); smart unit packing through `#pack-dialog` with live unpackaged counts and `#min–#max` range suggestions; QR sticker sheets; CSV/PDF manifests; parent-child rework lineage reconciliation |
+| **Verifier / Public** | `/verify` station verification and `GET /v/{payload}` smart-URL product passport pages |
+| **API** | `/api/v1` JWT API for login, orders, signing, packing, verification, blacklist deltas, notifications, cartons, rework, recalls, AI analysis, and health |
+| **Mobile verifier** | Offline Ed25519 verification with embedded universal key, SQLCipher-encrypted `scan_history`, duplicate/prior-owner caches, individual deletion and full Clear History with bilingual confirmations, GPS evidence, and background cloud sync |
 
 ## What it solves
 
-- Quota-locked serial issuance prevents ghost overproduction and label copying.
-- Ed25519 labels can be verified without a network connection.
-- Cloud cross-checking claims ownership and detects clones with a 5-minute / 100-metre grace rule.
-- Batch recall targets only affected factory/machine/batch units and notifies affected devices.
-- Rework reconciliation links replacement units to their original parent serials.
-- Anomaly analysis detects clone clusters, ghost production, rework gaps, and defect clusters.
-- Bilingual dashboards and notifications keep factory-floor and buyer teams aligned.
-- CSV/PDF batch exports and Merkle-root auditing make compliance evidence printable and auditable.
+- Prevents ghost overproduction with row-locked quota enforcement and unique serial constraints
+- Verifies labels without connectivity and detects forged signatures, expiry, recalls, repeat owners, and clone scans
+- Limits recalls to exact factory / machine / batch scopes and notifies affected devices
+- Reconstructs rework lineage after replacement labels are issued
+- Produces bilingual compliance guidance without requiring an external AI provider
+- Keeps evidence auditable through scan logs, recall events, anomaly reports, Merkle roots, and anchor receipts
 
-## Key components
+## Technology stack
 
-| Area | Implementation |
+| Layer | Choice |
 |---|---|
-| Web UI | Role dashboards for buyers, factory QA and admins; verifier; recall/rework/AI dialogs |
-| REST API | Versioned `/api/v1` JWT API with rate limits and a consistent JSON envelope |
-| Signing | One HQ Ed25519 keypair; per-unit outer/inner serials; SHA-256 unit hashes |
-| Quota control | Row-locked transactions and unique serial constraints |
-| Verification | Signature + registry checks, recall/expiry precedence, device claim and clone alerts |
-| Offline support | Gzip+Base64 blacklist package capped below 50 KB |
-| Audit | Merkle roots, append-only scan ledger, recall events and anomaly reports |
-| AI | OpenAI-compatible or Gemini chat/vision with deterministic bilingual fallback |
+| Backend | Laravel 12, PHP 8.2+ (validated on 8.4), Eloquent, queueable services |
+| Frontend | Blade, Tailwind CSS 4, Vite 7, vanilla JS, Chart.js, Leaflet |
+| Database | MySQL 8+ / MariaDB 10.6+ with `utf8mb4`; migrations are authoritative, `schema.sql` mirrors them |
+| Crypto | Ed25519 (`paragonie/sodium_compat`), SHA-256 Merkle trees, HS256 JWT |
+| Exports | Dompdf CSV/PDF manifests and `chillerlan/php-qrcode` QR sticker sheets |
+| Mobile | Flutter 3.50+, Dart 3.12+, SQLCipher, ML Kit barcode/OCR, GPS, background sync |
+| Hosting | cPanel shared hosting, VPS, or managed MySQL; zero-SSH web installer included |
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design and [docs/API.md](docs/API.md) for
-the endpoint reference and cURL examples. `schema.sql` is the canonical MySQL DDL mirroring the
-migrations.
-
-## Requirements
-
-- PHP 8.2+ (validated on PHP 8.4) with `sodium`, `pdo_mysql`, `mbstring`, `openssl`, `curl`,
-  `dom`, `fileinfo`, and `zlib`
-- MySQL 8.0+ or MariaDB 10.6+ with `utf8mb4`
-- Composer 2
-- Node.js 20+ and npm for asset builds
-- A queue worker if `QUEUE_CONNECTION=database` is used
-- An HTTPS reverse proxy or web server in production
-
-The test suite requires a MySQL-compatible database. `pdo_sqlite` is not required and SQLite is
-not used.
-
-## Installation
+## Quick start (local)
 
 ```bash
 git clone https://github.com/hossainel/TriProof-AI.git
@@ -66,158 +57,129 @@ cd TriProof-AI
 composer install
 cp .env.example .env
 php artisan key:generate
-```
-
-Create the database, configure `DB_*` in `.env`, then generate the signing keys:
-
-```bash
 php artisan triproof:keys --write
 ```
 
-`--write` stores `HQ_PRIVATE_SIGNING_KEY`, `UNIVERSAL_PUBLIC_VERIFICATION_KEY`, and a random
-`JWT_SECRET` in `.env` and sets the file mode to `0600`. The private key must never be committed,
-printed, or shared. Rotating the key with `--force` invalidates previously printed labels.
-
-Run migrations and the production administrator seed:
+Create a MySQL database and configure `DB_*` in `.env`, then:
 
 ```bash
 php artisan migrate --force
 php artisan db:seed --force
+npm install && npm run build
+php artisan test
+vendor/bin/pint --test
 ```
 
-Set `ADMIN_EMAIL` and a 12+ character `ADMIN_PASSWORD` before seeding. The production seeder
-creates/updates only that administrator.
-
-Build frontend assets:
-
-```bash
-npm ci
-npm run build
-```
-
-For local images, omit `--force` and run `php artisan migrate --seed`.
-
-### Local demo data
-
-Demo data is only created when the app is in the `local` environment, `TRIPROOF_DEMO_SEED=true`,
-and `TRIPROOF_DEMO_PASSWORD` is at least 12 characters. It creates:
-
-- Buyer: `buyer@triproof.local`
-- Factory QA: `factory@triproof.local` (factory `DHK04`, Bangla UI)
-- Admin: `admin@triproof.local`
-- Two purchase orders and a signed demo batch
-
-`TRIPROOF_SHOW_DEMO_HINTS=true` shows the demo credentials on the login screen. Never enable
-demo seeding or demo hints in production.
-
-## Environment
-
-Start from [.env.example](.env.example). The important settings are:
-
-| Variable | Purpose |
-|---|---|
-| `APP_ENV`, `APP_DEBUG`, `APP_URL` | Deployment identity; use `production`, `false`, and the real HTTPS URL |
-| `APP_TIMEZONE` | Display timezone; database timestamps remain UTC |
-| `DB_*` | MySQL/MariaDB connection |
-| `SESSION_*` | Web session security; use secure cookies and HTTPS in production |
-| `HQ_PRIVATE_SIGNING_KEY` | Base64 Ed25519 secret; `.env` only |
-| `UNIVERSAL_PUBLIC_VERIFICATION_KEY` | Base64 Ed25519 public key; safe to embed in clients |
-| `JWT_SECRET` | HS256 signing secret; at least 32 characters |
-| `JWT_TTL_MINUTES` | API token lifetime |
-| `OFFLINE_BLACKLIST_MAX_BYTES` | Hard cap for the offline package (default 50,000) |
-| `VERIFICATION_GRACE_SECONDS`, `VERIFICATION_GRACE_METERS` | Store-checkout grace window |
-| `MAX_BATCH_GENERATE`, `MAX_PDF_UNITS` | Generation and print safety limits |
-| `AI_PROVIDER`, `AI_API_KEY`, `AI_*` | `none`, `openai` (OpenAI-compatible), or `gemini` |
-| `CORS_ALLOWED_ORIGINS` | Exact comma-separated origins; avoid `*` in production |
-| `RATE_LIMIT_*` | Per-minute throttle overrides |
-| `ADMIN_*` | Production administrator bootstrap |
-| `TRIPROOF_DEMO_*` | Local-only demo data and login hints |
-
-With `AI_PROVIDER=none` or a missing/invalid key, all compliance workflows continue using the
-deterministic bilingual fallback. Vision OCR is the only feature that requires a configured AI
-provider and returns a clear `vision_ai_unavailable` error without one.
-
-## Running locally
+Start the app:
 
 ```bash
 php artisan serve --host=127.0.0.1 --port=8000
 npm run dev
 ```
 
-Open `http://127.0.0.1:8000`. The health endpoint is `/api/v1/health`; public key metadata is at
-`/.well-known/triproof-key.json`.
+Open `http://127.0.0.1:8000`. Health is available at `/api/v1/health` and public key metadata at `/.well-known/triproof-key.json`.
 
-## Tests and quality
+Demo data is created only in `local` when `TRIPROOF_DEMO_SEED=true` and `TRIPROOF_DEMO_PASSWORD` is at least 12 characters. Never enable demo seeding or hints in production.
 
-Configure a dedicated database (default `triproof_testing`) in the environment and run:
+## Environment
+
+Start from [.env.example](.env.example). Use placeholders in documentation; never commit real passwords, private keys, JWT secrets, or tokens.
+
+| Variable | Purpose |
+|---|---|
+| `APP_ENV`, `APP_DEBUG`, `APP_URL`, `APP_TIMEZONE` | Deployment identity and `Asia/Dhaka` display timezone |
+| `DB_CONNECTION`, `DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | MySQL/MariaDB connection |
+| `SESSION_DRIVER`, `CACHE_STORE`, `QUEUE_CONNECTION` | Database-backed sessions, cache, and queue by default |
+| `HQ_PRIVATE_SIGNING_KEY` | Base64 Ed25519 secret; `.env` only |
+| `UNIVERSAL_PUBLIC_VERIFICATION_KEY` | Base64 public key; safe for clients and documentation placeholders |
+| `JWT_SECRET`, `JWT_TTL_MINUTES`, `JWT_ISSUER`, `JWT_AUDIENCE` | API token signing and claims |
+| `KEY_ROTATION_MONTHS` | Key lifecycle advisory metadata |
+| `OFFLINE_BLACKLIST_MAX_BYTES` | Offline package cap (default 50,000 bytes) |
+| `OFFLINE_BLACKLIST_MAX_CLONED`, `OFFLINE_BLOOM_TARGET_ENTRIES`, `OFFLINE_BLOOM_MAX_BITS` | Offline cache and Bloom filter sizing |
+| `VERIFICATION_GRACE_SECONDS`, `VERIFICATION_GRACE_METERS` | Store-checkout grace window |
+| `MAX_BATCH_GENERATE`, `MAX_PDF_UNITS`, `QR_PREVIEW_PAIRS` | Generation, print, and preview limits |
+| `AI_PROVIDER`, `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_VISION_MODEL` | `none`, `openai` compatible, or `gemini` |
+| `ANCHOR_PROVIDER`, `ALERT_WEBHOOK_URL` | Merkle anchor provider and optional alert webhook |
+| `CORS_ALLOWED_ORIGINS`, `RATE_LIMIT_*` | Exact allowed origins and throttle overrides |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Production administrator bootstrap |
+| `TRIPROOF_DEMO_*` | Local-only demo data and login hints |
+
+With `AI_PROVIDER=none` or invalid credentials, compliance workflows continue with deterministic bilingual fallbacks. Vision OCR is the only feature that returns `vision_ai_unavailable` without a configured provider.
+
+## Tests and quality gates
 
 ```bash
 php artisan test
 vendor/bin/pint --test
+npm run build
+php artisan view:clear && php artisan view:cache
 ```
 
-In CI, provide `DB_HOST`, `DB_PORT`, `DB_USERNAME`, and `DB_PASSWORD` for the `triproof_testing`
-database. `phpunit.xml` forces the MySQL connection, array cache/session/mail, sync queue, and
-disables demo seeding. The suite covers signing/verification, transactional quota enforcement,
-claim/grace/clone/recall/expiry/forgery/idempotency, rework lineage, AI fallback/scoping, web
-authentication, and the JWT API flow.
+Use a dedicated MySQL-compatible test database (default `triproof_testing`). The suite covers signing, quota transactions, verification state transitions, admin CRUD, all modal round trips, packing suggestions, rework, AI fallback, API flows, and web authorization.
 
-## Production deployment (VPS or cPanel)
+## Zero-SSH cPanel deployment
 
-1. Upload the application outside the web root where possible. Point the document root to
-   `public/`. If the host only allows the project root, use the provided root `.htaccess`
-   fallback.
-2. Install production dependencies and build assets:
-   ```bash
-   composer install --no-dev --optimize-autoloader
-   npm ci && npm run build
-   ```
-3. Copy `.env.example` to `.env` and configure the production values. Set `APP_ENV=production`,
-   `APP_DEBUG=false`, the real `APP_URL`, secure session cookies, database credentials, CORS
-   allow-list, and AI keys if used.
-4. Generate the app key and signing keys:
-   ```bash
-   php artisan key:generate
-   php artisan triproof:keys --write
-   ```
-5. Run migrations and the admin seed:
-   ```bash
-   php artisan migrate --force
-   php artisan db:seed --force
-   ```
-6. Make `storage/` and `bootstrap/cache/` writable by the web server user.
-7. Cache production metadata:
-   ```bash
-   php artisan optimize
-   ```
-8. Configure a queue worker for `QUEUE_CONNECTION=database` if notifications/export work is
-   queued in your deployment, and add the scheduler cron:
-   ```cron
-   * * * * * cd /path/to/TriProof-AI && php artisan schedule:run >> /dev/null 2>&1
-   ```
-9. Terminate TLS at the web server/proxy, keep HTTPS-only cookies enabled, and restrict access to
-   `.env`, storage logs, and version-control metadata.
-10. Verify `GET /api/v1/health`, `GET /.well-known/triproof-key.json`, login, dashboard, export,
-    and a verification scan after deployment.
+The deployment archive `triproof-cpanel-deploy.zip` contains the Laravel web application, committed `public/build` assets, and Composer `vendor/` so the one-click installer works without SSH. It excludes `mobile/`, `node_modules/`, `.git/`, local `.env` files, and local test caches.
 
-The signing private key and `JWT_SECRET` must be backed up securely. Losing the signing key means
-new labels cannot be signed for the existing public key; leaking it compromises authenticity.
-For V2, rotate non-disruptively with `php artisan triproof:keys:rotate --key-version=K02
-[--buyer=ID]`; the previous key stays `verify_only` so retail inventory remains verifiable.
-`php artisan triproof:keys --force` remains the destructive v1 reset for invalidating old labels.
+1. In cPanel, create the database and database user; note the database name, username, and `<YOUR_DB_PASSWORD>`.
+2. Upload `triproof-cpanel-deploy.zip` to the hosting account and extract it into the web root (or an application directory whose `public/` folder is the document root).
+3. Ensure the document root points to `public/`. If the host exposes the project root, use the included root `.htaccess` fallback.
+4. Create `.env` from `.env.example` and set `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL`, `DB_*`, session/cookie security, CORS origins, and the public verification key placeholder `<UNIVERSAL_PUBLIC_KEY>` if a pre-provisioned key is used.
+5. Make `storage/`, `storage/framework/*`, `bootstrap/cache/`, and `public/uploads/` writable by the web server user.
+6. Visit `https://<YOUR_DOMAIN>/cpanel-setup.php` once. The setup script checks PHP/extensions, creates directories, clears caches, generates `APP_KEY`, `JWT_SECRET`, and Ed25519 keys, writes a locked-down `.env`, runs `php artisan migrate --force` and `php artisan db:seed --force`, then self-deletes.
+7. If the host blocks self-deletion, remove `public/cpanel-setup.php` and any migration-runner helper immediately after setup.
+8. Verify `GET /api/v1/health`, `GET /.well-known/triproof-key.json`, admin login, buyer/factory dashboards, QR export, and a verification scan.
+9. Add the scheduler cron if not already configured by the host:
+
+```cron
+* * * * * cd /path/to/TriProof-AI && php artisan schedule:run >> /dev/null 2>&1
+```
+
+For manual VPS deployment, run `composer install --no-dev --optimize-autoloader`, `npm ci && npm run build`, `php artisan key:generate`, `php artisan triproof:keys --write`, `php artisan migrate --force`, `php artisan db:seed --force`, `php artisan optimize`, and configure TLS plus secure cookies.
+
+Key rotation is non-disruptive:
+
+```bash
+php artisan triproof:keys:rotate --key-version=K02 [--buyer=ID]
+```
+
+The previous key remains `verify_only` so existing inventory stays verifiable. Back up the private key and `JWT_SECRET` securely; never place them in Markdown, ZIP metadata, or source control.
 
 ## Database
 
-`php artisan migrate` is the source of truth. For a DBA review or a fresh manual install,
-`schema.sql` contains the equivalent table definitions, indexes, and foreign keys. The full table
-contract is documented in ARCHITECTURE.md section 5.
+Migrations in `database/migrations/` are the source of truth. [schema.sql](schema.sql) is the DBA-facing DDL mirror. Current domain tables include `users`, `factories`, `purchase_orders`, `serial_registry`, `scan_logs`, `notifications`, `recall_events`, `ai_anomaly_reports`, `system_settings`, `signing_keys`, `carton_aggregations`, `carton_units`, `blockchain_anchors`, and `device_attestations`.
+
+## Mobile client
+
+The offline verifier lives in [`mobile/`](mobile/README.md). It is a Flutter application (package `tripoof_ai_scanner`) for Android and iOS, not a native Kotlin project. Build it with:
+
+```bash
+cd mobile
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --release --split-per-abi \
+  --dart-define=API_BASE_URL=https://<YOUR_DOMAIN> \
+  --dart-define=UNIVERSAL_PUBLIC_KEY=<UNIVERSAL_PUBLIC_KEY> \
+  --dart-define=BUILD_EPOCH_MS=1763510400000
+```
+
+## Project Team
+
+| Member | Role |
+|---|---|
+| **Feroz Mahmud** | Team Lead |
+| **Shafayet Al Hossain** | Full Stack Developer & Domain Expert |
+| **Remon Islam** | AI & ML Engineer |
+| **Masrurul Hasan Maktum** | Developer & Tester |
+| **Golam Rabbani** | DevOps Engineer |
 
 ## Security notes
 
-- The HQ private key never appears in API responses, logs, exports, or the database.
-- The API and web layer share the same authorization policies and service layer.
-- JWT logout revokes the token ID in cache until expiry.
+- Private key material never appears in API responses, logs, exports, or documentation.
+- API and web flows share services and authorization policies; role gates are enforced server-side.
+- JWT logout revokes the token ID until expiry; role and account changes invalidate stale tokens.
 - Serial generation uses `SELECT ... FOR UPDATE`, exact-N inserts, and unique constraints.
-- Web forms use CSRF, session regeneration, hashed passwords, and role gates.
-- Verification rate limits and a capped offline package protect device workloads.
+- Web forms use CSRF, validation, hashed passwords, role middleware, and scoped `old()` modal reopening.
+- Offline packages are capped, and verification endpoints are rate limited.
 - Error responses hide internals; detailed exceptions are logged server-side.

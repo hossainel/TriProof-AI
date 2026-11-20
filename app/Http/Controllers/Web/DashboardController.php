@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Enums\SerialStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\AiAnomalyReport;
@@ -76,38 +77,31 @@ class DashboardController extends Controller
             ->limit(100)
             ->get();
 
+        $backfilledCodes = User::query()
+            ->whereNotNull('factory_id')
+            ->distinct()
+            ->pluck('factory_id')
+            ->merge(PurchaseOrder::query()->distinct()->pluck('factory_id'))
+            ->push('DHK04')
+            ->filter()
+            ->map(fn ($code) => strtoupper(trim((string) $code)))
+            ->unique()
+            ->values();
+
+        foreach ($backfilledCodes as $code) {
+            Factory::firstOrCreate(['code' => $code], [
+                'name_en' => 'Factory '.$code,
+                'name_bn' => null,
+                'location' => null,
+                'contact_email' => null,
+                'is_active' => true,
+            ]);
+        }
+
         $factories = Factory::query()
             ->active()
             ->orderBy('code')
             ->get();
-
-        if ($factories->count() === 0) {
-            $backfilledCodes = User::query()
-                ->whereNotNull('factory_id')
-                ->distinct()
-                ->pluck('factory_id')
-                ->merge(PurchaseOrder::query()->distinct()->pluck('factory_id'))
-                ->filter()
-                ->map(fn ($code) => strtoupper(trim((string) $code)))
-                ->unique()
-                ->values();
-
-            if ($backfilledCodes->isEmpty()) {
-                $backfilledCodes = collect(['DHK04']);
-            }
-
-            foreach ($backfilledCodes as $code) {
-                Factory::firstOrCreate(['code' => $code], [
-                    'name_en' => 'Factory '.$code,
-                    'name_bn' => null,
-                    'location' => null,
-                    'contact_email' => null,
-                    'is_active' => true,
-                ]);
-            }
-
-            $factories = Factory::query()->active()->orderBy('code')->get();
-        }
 
         $buyers = User::query()
             ->where('role', UserRole::GlobalBuyer)
@@ -193,6 +187,55 @@ class DashboardController extends Controller
             ->limit(100)
             ->get();
 
+        $generatedStatus = SerialStatus::Generated->value;
+        $packableRows = DB::table('serial_registry')
+            ->whereIn('po_id', $poIdsQuery)
+            ->select('po_id', 'machine_id', 'batch_id')
+            ->selectRaw('SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as remaining_count', [$generatedStatus])
+            ->selectRaw('MIN(CASE WHEN status = ? THEN unit_number END) as min_unit', [$generatedStatus])
+            ->selectRaw('MAX(CASE WHEN status = ? THEN unit_number END) as max_unit', [$generatedStatus])
+            ->groupBy('po_id', 'machine_id', 'batch_id')
+            ->orderBy('po_id')
+            ->orderBy('machine_id')
+            ->orderBy('batch_id')
+            ->get();
+
+        $packableSummary = [];
+        foreach ($orders as $order) {
+            $packableSummary[$order->id] = [
+                'total_remaining' => 0,
+                'batches' => [],
+                'all_batches' => [],
+            ];
+        }
+
+        foreach ($packableRows as $row) {
+            $poId = (int) $row->po_id;
+            if (! isset($packableSummary[$poId])) {
+                $packableSummary[$poId] = [
+                    'total_remaining' => 0,
+                    'batches' => [],
+                    'all_batches' => [],
+                ];
+            }
+
+            $remaining = (int) $row->remaining_count;
+            $batch = [
+                'machine_id' => (string) $row->machine_id,
+                'batch_id' => (string) $row->batch_id,
+                'remaining_count' => $remaining,
+                'min_unit' => $row->min_unit === null ? null : (int) $row->min_unit,
+                'max_unit' => $row->max_unit === null ? null : (int) $row->max_unit,
+            ];
+
+            $packableSummary[$poId]['all_batches'][] = $batch;
+
+            if ($remaining > 0) {
+                $packableSummary[$poId]['batches'][] = $batch;
+                $packableSummary[$poId]['total_remaining'] += $remaining;
+            }
+        }
+
         $markers = $this->markers($user, $poIdsQuery, $accessibleFactories, $crypto);
 
         $users = $user->isAdmin()
@@ -209,6 +252,7 @@ class DashboardController extends Controller
             'anomalies' => $anomalies,
             'recalls' => $recalls,
             'batches' => $batchQuery,
+            'packableSummary' => $packableSummary,
             'markers' => $markers,
             'chartData' => [
                 'generated' => $totals['generated_units'],

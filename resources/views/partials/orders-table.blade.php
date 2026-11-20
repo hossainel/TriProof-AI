@@ -90,6 +90,7 @@
                                         data-open-dialog="pack-dialog"
                                         data-action="{{ route('orders.pack', $order) }}"
                                         data-context="{{ $context }}"
+                                        data-order-id="{{ $order->id }}"
                                     >
                                         <x-icon name="upload" class="h-3.5 w-3.5" />
                                         {{ __('triproof.orders.pack') }}

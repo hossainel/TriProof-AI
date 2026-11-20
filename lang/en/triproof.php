@@ -316,6 +316,15 @@ return [
             'start' => 'Unit start',
             'end' => 'Unit end',
             'range_hint' => 'Optional. Leave both blank to pack every generated unit in the batch.',
+            'remaining' => ':count unpackaged units available',
+            'suggested_range' => 'Suggested range: #:min – #:max',
+            'all_packed' => 'All generated units on this order are already packed or recalled',
+            'batch_empty' => 'This batch has no unpackaged units left.',
+            'no_match' => 'No unpackaged units match this machine and batch.',
+            'select_batch' => 'Select a batch below to auto-fill its range.',
+            'batch_summary' => ':machine · :batch (:count units: #:min–#:max)',
+            'batch_zero' => ':machine · :batch (0 unpackaged units)',
+            'use_full_range' => 'Use full range (#:min–#:max)',
             'submit' => 'Mark units packed',
         ],
         'recall' => [
@@ -529,6 +538,7 @@ return [
             'empty' => 'No factory QA operators yet.',
             'confirm_delete' => 'Remove this operator account? This cannot be undone.',
             'factory' => 'Factory',
+            'email' => 'Email',
             'no_factories' => 'Register a factory before adding operators.',
         ],
         'settings' => [
@@ -571,6 +581,10 @@ return [
 
     'validation' => [
         'buyer_required' => 'Select a global buyer before creating an order.',
+        'factory_not_registered' => 'The selected factory is not registered in TriProof AI.',
+        'pack_no_match' => 'No generated units matched this packing request. Available to pack on :po: :batches.',
+        'pack_all_packed' => 'All generated units on :po have already been packed.',
+        'pack_available_batch' => 'Machine :machine · Batch :batch (:count units: #:min–#:max)',
         'rework_file_required' => 'Upload a rework CSV, JSON or text file.',
     ],
 ];

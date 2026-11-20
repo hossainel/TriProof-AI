@@ -13,6 +13,7 @@
         <form method="POST" action="{{ route('admin.operators.store') }}" class="space-y-4 p-6">
             @csrf
             <input type="hidden" name="dialog_id" value="add-operator-dialog">
+            <input type="hidden" name="active_tab" value="admin-operators">
 
             @php($isCurrentDialog = old('dialog_id') === 'add-operator-dialog')
 
@@ -33,7 +34,7 @@
             </div>
 
             <div>
-                <label for="add-operator-email" class="label">{{ __('triproof.admin.operators.factory') }}</label>
+                <label for="add-operator-email" class="label">{{ __('triproof.admin.operators.email') }}</label>
                 <input id="add-operator-email" name="email" type="email" class="input" value="{{ $isCurrentDialog ? old('email') : '' }}" required>
             </div>
 
@@ -48,7 +49,7 @@
                 <select id="add-operator-factory" name="factory_id" class="select" required>
                     <option value="">{{ __('triproof.forms.create_order.select_factory') }}</option>
                     @foreach ($factories as $factory)
-                        <option value="{{ $factory->code }}" {{ $isCurrentDialog ? (old('factory_id') === $factory->code ? 'selected' : '') : (($operator->factory_id ?? null) === $factory->code ? 'selected' : '') }}>
+                        <option value="{{ $factory->code }}" @selected($isCurrentDialog && old('factory_id') === $factory->code)>
                             {{ $factory->code }} · {{ $factory->name_en }}
                         </option>
                     @endforeach
@@ -92,6 +93,7 @@
 
                 <input type="hidden" name="id" value="{{ $operator->id }}">
                 <input type="hidden" name="dialog_id" value="edit-operator-{{ $operator->id }}">
+                <input type="hidden" name="active_tab" value="admin-operators">
 
                 @php($isCurrentDialog = old('dialog_id') === 'edit-operator-' . $operator->id)
 
@@ -112,7 +114,7 @@
                 </div>
 
                 <div>
-                    <label for="edit-operator-email-{{ $operator->id }}" class="label">{{ __('triproof.admin.operators.factory') }}</label>
+                    <label for="edit-operator-email-{{ $operator->id }}" class="label">{{ __('triproof.admin.operators.email') }}</label>
                     <input id="edit-operator-email-{{ $operator->id }}" name="email" type="email" class="input" value="{{ $isCurrentDialog ? old('email') : $operator->email }}" required>
                 </div>
 
@@ -127,7 +129,7 @@
                     <select id="edit-operator-factory-{{ $operator->id }}" name="factory_id" class="select" required>
                         <option value="">{{ __('triproof.forms.create_order.select_factory') }}</option>
                         @foreach ($factories as $factory)
-                            <option value="{{ $factory->code }}" {{ $isCurrentDialog ? (old('factory_id') === $factory->code ? 'selected' : '') : (($operator->factory_id ?? null) === $factory->code ? 'selected' : '') }}>
+                            <option value="{{ $factory->code }}" @selected($isCurrentDialog ? old('factory_id') === $factory->code : $operator->factory_id === $factory->code)>
                                 {{ $factory->code }} · {{ $factory->name_en }}
                             </option>
                         @endforeach

@@ -23,7 +23,8 @@ class AdminDirectoryController extends Controller
 {
     public function index(Request $request): View
     {
-        session(['active_tab' => $request->input('tab', 'admin-buyers')]);
+        $tab = $request->input('tab') ?: session('active_tab', 'admin-buyers');
+        session(['active_tab' => $tab]);
 
         return view('admin.manage', [
             'buyers' => User::query()
@@ -37,14 +38,34 @@ class AdminDirectoryController extends Controller
                 ->orderBy('name')
                 ->get(),
             'settings' => array_merge(SystemSetting::DEFAULTS, SystemSetting::allAsArray()),
-            'activeTab' => session('active_tab'),
+            'activeTab' => $tab,
         ]);
+    }
+
+    private function activeTab(): string
+    {
+        $tab = (string) (request()->input('active_tab') ?: session('active_tab', 'admin-buyers'));
+
+        return in_array($tab, ['admin-buyers', 'admin-factories', 'admin-operators', 'admin-settings'], true)
+            ? $tab
+            : 'admin-buyers';
     }
 
     private function adminRedirect(string $message): RedirectResponse
     {
-        return redirect()->route('admin.manage', ['tab' => session('active_tab')])
-            ->with('success', $message);
+        return back()
+            ->with('status', $message)
+            ->with('active_tab', $this->activeTab());
+    }
+
+    private function adminFailure(string $dialogId, string $key, string $message): RedirectResponse
+    {
+        $tab = $this->activeTab();
+
+        return back()
+            ->withInput(['dialog_id' => $dialogId, 'active_tab' => $tab])
+            ->withErrors([$key => $message])
+            ->with('active_tab', $tab);
     }
 
     public function storeBuyer(StoreBuyerRequest $request): RedirectResponse
@@ -88,9 +109,11 @@ class AdminDirectoryController extends Controller
         $this->ensureRole($user, UserRole::GlobalBuyer);
 
         if ($user->purchaseOrders()->exists()) {
-            return redirect()->route('admin.manage', ['tab' => session('active_tab')])
-                ->withInput(['dialog_id' => 'edit-buyer-'.$user->id])
-                ->withErrors(['buyer' => __('triproof.admin.errors.buyer_has_orders')]);
+            return $this->adminFailure(
+                'edit-buyer-'.$user->id,
+                'buyer',
+                __('triproof.admin.errors.buyer_has_orders'),
+            );
         }
 
         $user->delete();
@@ -138,9 +161,11 @@ class AdminDirectoryController extends Controller
     public function destroyFactory(Factory $factory): RedirectResponse
     {
         if ($factory->purchaseOrders()->exists() || $factory->serials()->exists() || $factory->users()->exists()) {
-            return redirect()->route('admin.manage', ['tab' => session('active_tab')])
-                ->withInput(['dialog_id' => 'edit-factory-'.$factory->id])
-                ->withErrors(['factory' => __('triproof.admin.errors.factory_has_references')]);
+            return $this->adminFailure(
+                'edit-factory-'.$factory->id,
+                'factory',
+                __('triproof.admin.errors.factory_has_references'),
+            );
         }
 
         $factory->delete();
