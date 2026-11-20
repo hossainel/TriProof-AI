@@ -56,3 +56,7 @@ flutter:
   assets:
     - assets/audio/chime_genuine.wav
     - assets/audio/alarm_alert.wav
+  fonts:
+    - family: MaterialIcons
+      fonts:
+        - asset: fonts/MaterialIcons-Regular.otf
