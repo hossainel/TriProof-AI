@@ -6,7 +6,7 @@ return [
         'tagline' => 'Forensic traceability for every unit',
         'description' => 'Ed25519 signed serials, offline verification and precision recalls for global supply chains.',
         'footer' => 'Signed at source. Verified everywhere.',
-        'version' => 'v1.0',
+        'version' => 'v2.1',
         'confidential' => 'Supply-chain integrity console',
     ],
 
